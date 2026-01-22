@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/routes/app_routes.dart';
+import '../../core/constants/app_constants.dart';
+import '../../providers/auth_provider.dart';
 
 class RoleSelectionScreen extends StatefulWidget {
   const RoleSelectionScreen({super.key});
@@ -13,7 +17,11 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
   final _nameController = TextEditingController();
   final _flatController = TextEditingController();
   String _selectedRole = '';
-  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+  }
 
   @override
   void dispose() {
@@ -34,6 +42,21 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 40),
+
+                // Header Icon
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withAlpha(25),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.person_add,
+                    size: 50,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 24),
                 const Text(
                   'Complete Your Profile',
                   style: TextStyle(
@@ -55,22 +78,20 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                 TextFormField(
                   controller: _nameController,
                   textCapitalization: TextCapitalization.words,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Full Name',
-                    prefixIcon: const Icon(Icons.person),
-                    filled: true,
-                    fillColor: Colors.grey.shade100,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
+                    hintText: 'Enter your full name',
+                    prefixIcon: Icon(Icons.person),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your name';
                     }
-                    if (value.length < 2) {
-                      return 'Name must be at least 2 characters';
+                    if (value.length < AppConstants.minNameLength) {
+                      return 'Name must be at least ${AppConstants.minNameLength} characters';
+                    }
+                    if (value.length > AppConstants.maxNameLength) {
+                      return 'Name must be less than ${AppConstants.maxNameLength} characters';
                     }
                     return null;
                   },
@@ -89,23 +110,23 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
 
                 // Role Cards
                 _buildRoleCard(
-                  role: 'guard',
+                  role: AppConstants.roleGuard,
                   title: 'Guard',
                   description: 'Register visitors and manage entry/exit',
                   icon: Icons.security,
-                  color: Colors.blue,
+                  color: AppColors.primary,
                 ),
                 const SizedBox(height: 12),
                 _buildRoleCard(
-                  role: 'resident',
+                  role: AppConstants.roleResident,
                   title: 'Resident',
                   description: 'Approve or deny visitor requests',
                   icon: Icons.home,
-                  color: Colors.teal,
+                  color: AppColors.secondary,
                 ),
                 const SizedBox(height: 12),
                 _buildRoleCard(
-                  role: 'admin',
+                  role: AppConstants.roleAdmin,
                   title: 'Admin',
                   description: 'View all logs and manage the system',
                   icon: Icons.admin_panel_settings,
@@ -113,24 +134,18 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                 ),
 
                 // Flat Number (only for residents)
-                if (_selectedRole == 'resident') ...[
+                if (_selectedRole == AppConstants.roleResident) ...[
                   const SizedBox(height: 24),
                   TextFormField(
                     controller: _flatController,
                     textCapitalization: TextCapitalization.characters,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'Flat Number',
-                      prefixIcon: const Icon(Icons.apartment),
                       hintText: 'e.g., A-101',
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
+                      prefixIcon: Icon(Icons.apartment),
                     ),
                     validator: (value) {
-                      if (_selectedRole == 'resident') {
+                      if (_selectedRole == AppConstants.roleResident) {
                         if (value == null || value.isEmpty) {
                           return 'Please enter your flat number';
                         }
@@ -140,36 +155,61 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                   ),
                 ],
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
+
+                // Error Message
+                Consumer<AuthProvider>(
+                  builder: (context, authProvider, child) {
+                    if (authProvider.errorMessage != null) {
+                      return Container(
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withAlpha(25),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error, color: AppColors.error),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                authProvider.errorMessage!,
+                                style: const TextStyle(color: AppColors.error),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
 
                 // Continue Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _completeRegistration,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                Consumer<AuthProvider>(
+                  builder: (context, authProvider, child) {
+                    return SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: authProvider.isLoading
+                            ? null
+                            : () => _completeRegistration(context),
+                        child: authProvider.isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor:
+                                      AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Text('Continue'),
                       ),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : const Text(
-                            'Continue',
-                            style: TextStyle(fontSize: 16),
-                          ),
-                  ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -224,7 +264,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
-                      color: isSelected ? color : Colors.black,
+                      color: isSelected ? color : AppColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -245,7 +285,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
     );
   }
 
-  void _completeRegistration() async {
+  void _completeRegistration(BuildContext context) async {
     if (_selectedRole.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a role')),
@@ -257,24 +297,23 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
-
-    // Simulate registration delay
-    await Future.delayed(const Duration(seconds: 2));
+    final authProvider = context.read<AuthProvider>();
+    final success = await authProvider.completeRegistration(
+      name: _nameController.text.trim(),
+      role: _selectedRole,
+      flatNumber: _selectedRole == AppConstants.roleResident
+          ? _flatController.text.trim()
+          : null,
+    );
 
     if (!mounted) return;
 
-    setState(() {
-      _isLoading = false;
-    });
-
-    // Navigate to appropriate home screen based on role
-    _navigateToHome(_selectedRole);
+    if (success) {
+      _navigateToHome(context, _selectedRole);
+    }
   }
 
-  void _navigateToHome(String role) {
+  void _navigateToHome(BuildContext context, String role) {
     String route;
     switch (role) {
       case 'guard':
@@ -287,7 +326,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
         route = AppRoutes.adminHome;
         break;
       default:
-        route = AppRoutes.phoneInput;
+        route = AppRoutes.login;
     }
     Navigator.pushReplacementNamed(context, route);
   }

@@ -1,5 +1,10 @@
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/routes/app_routes.dart';
+import '../../core/constants/app_constants.dart';
+import '../../providers/auth_provider.dart';
 
 class PhoneInputScreen extends StatefulWidget {
   const PhoneInputScreen({super.key});
@@ -11,7 +16,6 @@ class PhoneInputScreen extends StatefulWidget {
 class _PhoneInputScreenState extends State<PhoneInputScreen> {
   final _phoneController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
   String _selectedCountryCode = '+91';
 
   @override
@@ -23,6 +27,14 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -31,30 +43,36 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 40),
                 // Header
-                const Icon(
-                  Icons.shield,
-                  size: 60,
-                  color: Colors.blue,
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withAlpha(25),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.phone_android,
+                    size: 50,
+                    color: AppColors.primary,
+                  ),
                 ),
                 const SizedBox(height: 24),
                 const Text(
-                  'Welcome to\nGateKeeper',
+                  'Enter Your\nPhone Number',
                   style: TextStyle(
-                    fontSize: 32,
+                    fontSize: 28,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Enter your phone number to continue',
+                  'We will send you a verification code',
                   style: TextStyle(
                     fontSize: 16,
                     color: Colors.grey.shade600,
                   ),
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 32),
 
                 // Phone Input
                 Row(
@@ -63,7 +81,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
+                        border: Border.all(color: Colors.grey.shade300),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: DropdownButtonHideUnderline(
@@ -88,26 +106,21 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                       child: TextFormField(
                         controller: _phoneController,
                         keyboardType: TextInputType.phone,
-                        maxLength: 10,
-                        decoration: InputDecoration(
+                        maxLength: AppConstants.phoneNumberLength,
+                        decoration: const InputDecoration(
                           labelText: 'Phone Number',
                           hintText: '9876543210',
                           counterText: '',
-                          filled: true,
-                          fillColor: Colors.grey.shade100,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
+                          prefixIcon: Icon(Icons.phone),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Please enter phone number';
                           }
-                          if (value.length != 10) {
-                            return 'Phone number must be 10 digits';
+                          if (value.length != AppConstants.phoneNumberLength) {
+                            return 'Phone number must be ${AppConstants.phoneNumberLength} digits';
                           }
-                          if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
+                          if (!AppConstants.phoneRegex.hasMatch(value)) {
                             return 'Only digits allowed';
                           }
                           return null;
@@ -116,37 +129,61 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 24),
 
-                // Send OTP Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _sendOTP,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                // Error Message
+                Consumer<AuthProvider>(
+                  builder: (context, authProvider, child) {
+                    if (authProvider.errorMessage != null) {
+                      return Container(
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withAlpha(25),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error, color: AppColors.error),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                authProvider.errorMessage!,
+                                style: const TextStyle(color: AppColors.error),
+                              ),
                             ),
-                          )
-                        : const Text(
-                            'Send OTP',
-                            style: TextStyle(fontSize: 16),
-                          ),
-                  ),
+                          ],
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+
+                // Send OTP Button
+                Consumer<AuthProvider>(
+                  builder: (context, authProvider, child) {
+                    return SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: authProvider.isLoading
+                            ? null
+                            : () => _sendOTP(context),
+                        child: authProvider.isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor:
+                                      AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Text('Send OTP'),
+                      ),
+                    );
+                  },
                 ),
 
                 const Spacer(),
@@ -159,6 +196,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                       color: Colors.grey.shade600,
                       fontSize: 12,
                     ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ],
@@ -169,32 +207,27 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
     );
   }
 
-  void _sendOTP() async {
+  void _sendOTP(BuildContext context) async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    final phoneNumber = '$_selectedCountryCode${_phoneController.text}';
+    final authProvider = context.read<AuthProvider>();
 
-    // Simulate OTP sending delay
-    await Future.delayed(const Duration(seconds: 2));
+    await authProvider.sendOTP(phoneNumber);
 
     if (!mounted) return;
 
-    setState(() {
-      _isLoading = false;
-    });
-
-    // Navigate to OTP verification screen
-    Navigator.pushNamed(
-      context,
-      AppRoutes.otpVerification,
-      arguments: {
-        'verificationId': 'dummy_verification_id',
-        'phoneNumber': '$_selectedCountryCode${_phoneController.text}',
-      },
-    );
+    if (authProvider.status == AuthStatus.otpSent) {
+      Navigator.pushNamed(
+        context,
+        AppRoutes.otpVerification,
+        arguments: {
+          'verificationId': authProvider.verificationId,
+          'phoneNumber': phoneNumber,
+        },
+      );
+    }
   }
 }
