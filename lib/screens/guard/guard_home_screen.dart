@@ -1,6 +1,9 @@
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/routes/app_routes.dart';
+import '../../providers/auth_provider.dart';
 import 'add_visitor_screen.dart';
 
 class GuardHomeScreen extends StatefulWidget {
@@ -13,9 +16,6 @@ class GuardHomeScreen extends StatefulWidget {
 class _GuardHomeScreenState extends State<GuardHomeScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-
-  // TODO: Replace with actual data from provider
-  final String _guardName = 'Guard';
 
   @override
   void initState() {
@@ -31,54 +31,65 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Guard Dashboard'),
-        backgroundColor: AppColors.guardColor,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _showLogoutDialog(context),
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(text: 'Pending', icon: Icon(Icons.hourglass_empty)),
-            Tab(text: 'Inside', icon: Icon(Icons.people)),
-          ],
-        ),
-      ),
-      body: Column(
-        children: [
-          // Welcome Banner
-          _buildWelcomeBanner(),
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, child) {
+        final user = authProvider.user;
+        final guardName = user?.name ?? 'Guard';
 
-          // Tab Content
-          Expanded(
-            child: TabBarView(
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Guard Dashboard'),
+            backgroundColor: AppColors.guardColor,
+            actions: [
+              // Profile Button
+              IconButton(
+                icon: const Icon(Icons.person),
+                onPressed: () {
+                  Navigator.pushNamed(context, AppRoutes.profile);
+                },
+                tooltip: 'Profile',
+              ),
+            ],
+            bottom: TabBar(
               controller: _tabController,
-              children: [
-                _buildPendingTab(),
-                _buildInsideTab(),
+              indicatorColor: Colors.white,
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.white70,
+              tabs: const [
+                Tab(text: 'Pending', icon: Icon(Icons.hourglass_empty)),
+                Tab(text: 'Inside', icon: Icon(Icons.people)),
               ],
             ),
           ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _navigateToAddVisitor(context),
-        backgroundColor: AppColors.guardColor,
-        icon: const Icon(Icons.person_add),
-        label: const Text('Add Visitor'),
-      ),
+          body: Column(
+            children: [
+              // Welcome Banner
+              _buildWelcomeBanner(guardName, user?.photoUrl),
+
+              // Tab Content
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildPendingTab(),
+                    _buildInsideTab(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: () => _navigateToAddVisitor(context),
+            backgroundColor: AppColors.guardColor,
+            icon: const Icon(Icons.person_add),
+            label: const Text('Add Visitor'),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildWelcomeBanner() {
+  Widget _buildWelcomeBanner(String guardName, String? photoUrl) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -88,47 +99,61 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
           CircleAvatar(
             backgroundColor: AppColors.guardColor,
             radius: 24,
-            child: Text(
-              _guardName.substring(0, 1).toUpperCase(),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
+            child: photoUrl == null
+                ? Text(
+                    guardName.isNotEmpty
+                        ? guardName[0].toUpperCase()
+                        : 'G',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  )
+                : null,
           ),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Welcome, $_guardName',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Welcome, $guardName',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
                 ),
-              ),
-              Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: AppColors.success,
-                      shape: BoxShape.circle,
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: AppColors.success,
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'On Duty',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 14,
+                    const SizedBox(width: 6),
+                    Text(
+                      'On Duty',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 14,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // Quick profile access
+          IconButton(
+            icon: const Icon(Icons.settings, color: AppColors.guardColor),
+            onPressed: () {
+              Navigator.pushNamed(context, AppRoutes.profile);
+            },
           ),
         ],
       ),
@@ -354,35 +379,6 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
       const SnackBar(
         content: Text('Visitor checked out successfully'),
         backgroundColor: AppColors.success,
-      ),
-    );
-  }
-
-  void _showLogoutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Implement logout with provider
-              Navigator.pushReplacementNamed(context, AppRoutes.phoneInput);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Logout'),
-          ),
-        ],
       ),
     );
   }
