@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../screens/splash_screen.dart';
 import '../../screens/auth/login_screen.dart';
 import '../../screens/auth/phone_input_screen.dart';
@@ -56,7 +57,7 @@ class AppRoutes {
       case profile:
         return MaterialPageRoute(builder: (_) => const ProfileScreen());
 
-      // Placeholder routes for home screens (to be implemented later)
+      // Placeholder routes
       case residentHome:
       case adminHome:
         return MaterialPageRoute(

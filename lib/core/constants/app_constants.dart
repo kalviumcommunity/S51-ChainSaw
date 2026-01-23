@@ -17,16 +17,16 @@ class AppConstants {
 
   // Auth Provider Display Names
   static const Map<String, String> authProviderNames = {
-    'phone': 'Phone Number',
-    'password': 'Email & Password',
-    'google.com': 'Google',
+    providerPhone: 'Phone Number',
+    providerEmail: 'Email & Password',
+    providerGoogle: 'Google',
   };
 
   // Auth Provider Icons (Material Icons names)
   static const Map<String, String> authProviderIcons = {
-    'phone': 'phone',
-    'password': 'email',
-    'google.com': 'g_mobiledata',
+    providerPhone: 'phone',
+    providerEmail: 'email',
+    providerGoogle: 'g_mobiledata',
   };
 
   // Visitor Status
