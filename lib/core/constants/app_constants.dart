@@ -10,6 +10,25 @@ class AppConstants {
   static const String roleResident = 'resident';
   static const String roleAdmin = 'admin';
 
+  // Auth Providers (Firebase provider IDs)
+  static const String providerPhone = 'phone';
+  static const String providerEmail = 'password';
+  static const String providerGoogle = 'google.com';
+
+  // Auth Provider Display Names
+  static const Map<String, String> authProviderNames = {
+    providerPhone: 'Phone Number',
+    providerEmail: 'Email & Password',
+    providerGoogle: 'Google',
+  };
+
+  // Auth Provider Icons (Material Icons names)
+  static const Map<String, String> authProviderIcons = {
+    providerPhone: 'phone',
+    providerEmail: 'email',
+    providerGoogle: 'g_mobiledata',
+  };
+
   // Visitor Status
   static const String statusPending = 'pending';
   static const String statusApproved = 'approved';
@@ -54,4 +73,13 @@ class AppConstants {
   static const int phoneNumberLength = 10;
   static const int minNameLength = 2;
   static const int maxNameLength = 50;
+  static const int minPasswordLength = 6;
+
+  // Email Regex
+  static final RegExp emailRegex = RegExp(
+    r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+  );
+
+  // Phone Regex (digits only)
+  static final RegExp phoneRegex = RegExp(r'^[0-9]+$');
 }

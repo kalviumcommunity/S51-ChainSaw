@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
+
 import '../../screens/splash_screen.dart';
+import '../../screens/auth/login_screen.dart';
 import '../../screens/auth/phone_input_screen.dart';
 import '../../screens/auth/otp_verification_screen.dart';
 import '../../screens/auth/role_selection_screen.dart';
 import '../../screens/guard/guard_home_screen.dart';
 import '../../screens/guard/add_visitor_screen.dart';
+import '../../screens/profile/profile_screen.dart';
 
 class AppRoutes {
   AppRoutes._();
 
   // Route Names
   static const String splash = '/';
+  static const String login = '/login';
   static const String phoneInput = '/phone-input';
   static const String otpVerification = '/otp-verification';
   static const String roleSelection = '/role-selection';
@@ -18,12 +22,16 @@ class AppRoutes {
   static const String addVisitor = '/add-visitor';
   static const String residentHome = '/resident-home';
   static const String adminHome = '/admin-home';
+  static const String profile = '/profile';
 
   // Route Generator
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case splash:
         return MaterialPageRoute(builder: (_) => const SplashScreen());
+
+      case login:
+        return MaterialPageRoute(builder: (_) => const LoginScreen());
 
       case phoneInput:
         return MaterialPageRoute(builder: (_) => const PhoneInputScreen());
@@ -46,7 +54,10 @@ class AppRoutes {
       case addVisitor:
         return MaterialPageRoute(builder: (_) => const AddVisitorScreen());
 
-      // Placeholder routes for home screens (to be implemented later)
+      case profile:
+        return MaterialPageRoute(builder: (_) => const ProfileScreen());
+
+      // Placeholder routes
       case residentHome:
       case adminHome:
         return MaterialPageRoute(
