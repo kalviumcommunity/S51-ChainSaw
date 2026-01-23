@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../core/theme/app_colors.dart';
 import '../core/routes/app_routes.dart';
+import '../providers/auth_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -12,24 +15,58 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _navigateToNext();
+    _initializeApp();
   }
 
-  Future<void> _navigateToNext() async {
-    // Simulate loading time
+  Future<void> _initializeApp() async {
+    // Initialize auth provider and check auth state
+    final authProvider = context.read<AuthProvider>();
+    await authProvider.initialize();
+
+    // Minimum splash display time
     await Future.delayed(const Duration(seconds: 2));
 
     if (!mounted) return;
 
-    // TODO: Check auth state and navigate accordingly
-    // For now, navigate to phone input
-    Navigator.pushReplacementNamed(context, AppRoutes.phoneInput);
+    _navigateToNext(authProvider);
+  }
+
+  void _navigateToNext(AuthProvider authProvider) {
+    String route;
+
+    if (authProvider.isAuthenticated) {
+      if (authProvider.isNewUser || authProvider.user == null) {
+        // User authenticated but profile not complete
+        route = AppRoutes.roleSelection;
+      } else {
+        // Navigate to appropriate home based on role
+        route = _getHomeRoute(authProvider.user!.role);
+      }
+    } else {
+      // Not authenticated, go to login
+      route = AppRoutes.login;
+    }
+
+    Navigator.pushReplacementNamed(context, route);
+  }
+
+  String _getHomeRoute(String role) {
+    switch (role) {
+      case 'guard':
+        return AppRoutes.guardHome;
+      case 'resident':
+        return AppRoutes.residentHome;
+      case 'admin':
+        return AppRoutes.adminHome;
+      default:
+        return AppRoutes.login;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.blue,
+      backgroundColor: AppColors.primary,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -44,7 +81,7 @@ class _SplashScreenState extends State<SplashScreen> {
               child: const Icon(
                 Icons.shield,
                 size: 80,
-                color: Colors.blue,
+                color: AppColors.primary,
               ),
             ),
             const SizedBox(height: 24),
