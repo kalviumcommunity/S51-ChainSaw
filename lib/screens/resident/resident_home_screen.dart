@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/routes/app_routes.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/visitor_provider.dart';
+import '../../models/visitor_model.dart';
 
 class ResidentHomeScreen extends StatefulWidget {
   const ResidentHomeScreen({super.key});
@@ -15,77 +18,94 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
   int _selectedIndex = 0;
 
   @override
+  void initState() {
+    super.initState();
+    // Initialize visitor provider for resident
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = context.read<AuthProvider>().user;
+      if (user?.flatNumber != null && user!.flatNumber!.isNotEmpty) {
+        context.read<VisitorProvider>().initializeForResident(user.flatNumber!);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Resident Dashboard'),
-        backgroundColor: AppColors.residentColor,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person),
-            onPressed: () {
-              Navigator.pushNamed(context, AppRoutes.profile);
+    return Consumer2<AuthProvider, VisitorProvider>(
+      builder: (context, authProvider, visitorProvider, child) {
+        final user = authProvider.user;
+        final pendingCount = visitorProvider.pendingCount;
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Resident Dashboard'),
+            backgroundColor: AppColors.residentColor,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.person),
+                onPressed: () {
+                  Navigator.pushNamed(context, AppRoutes.profile);
+                },
+              ),
+            ],
+          ),
+          body: _buildBody(visitorProvider, user),
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: (index) {
+              setState(() {
+                _selectedIndex = index;
+              });
             },
+            destinations: [
+              const NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: pendingCount > 0
+                    ? Badge(
+                        label: Text('$pendingCount'),
+                        child: const Icon(Icons.notifications_outlined),
+                      )
+                    : const Icon(Icons.notifications_outlined),
+                selectedIcon: pendingCount > 0
+                    ? Badge(
+                        label: Text('$pendingCount'),
+                        child: const Icon(Icons.notifications),
+                      )
+                    : const Icon(Icons.notifications),
+                label: 'Requests',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.history_outlined),
+                selectedIcon: Icon(Icons.history),
+                label: 'History',
+              ),
+            ],
           ),
-        ],
-      ),
-      body: _buildBody(),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Badge(
-              label: Text('3'),
-              child: Icon(Icons.notifications_outlined),
-            ),
-            selectedIcon: Badge(
-              label: Text('3'),
-              child: Icon(Icons.notifications),
-            ),
-            label: 'Requests',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.history_outlined),
-            selectedIcon: Icon(Icons.history),
-            label: 'History',
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(VisitorProvider visitorProvider, user) {
     switch (_selectedIndex) {
       case 0:
-        return _buildHomeTab();
+        return _buildHomeTab(visitorProvider, user);
       case 1:
-        return _buildRequestsTab();
+        return _buildRequestsTab(visitorProvider);
       case 2:
-        return _buildHistoryTab();
+        return _buildHistoryTab(visitorProvider);
       default:
-        return _buildHomeTab();
+        return _buildHomeTab(visitorProvider, user);
     }
   }
 
-  Widget _buildHomeTab() {
-    final authProvider = context.watch<AuthProvider>();
-    final user = authProvider.user;
-
+  Widget _buildHomeTab(VisitorProvider visitorProvider, user) {
     return RefreshIndicator(
-      onRefresh: () async {
-        // TODO: Refresh data
-        await Future.delayed(const Duration(seconds: 1));
-      },
+      onRefresh: () => visitorProvider.refresh(),
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
@@ -93,11 +113,11 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Welcome Card
-            _buildWelcomeCard(user?.name ?? 'Resident'),
+            _buildWelcomeCard(user?.name ?? 'Resident', user?.flatNumber),
             const SizedBox(height: 24),
 
             // Quick Stats
-            _buildQuickStats(),
+            _buildQuickStats(visitorProvider),
             const SizedBox(height: 24),
 
             // Pending Requests Section
@@ -107,7 +127,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
               });
             }),
             const SizedBox(height: 12),
-            _buildPendingRequestsList(),
+            _buildPendingRequestsList(visitorProvider),
             const SizedBox(height: 24),
 
             // Currently Inside Section
@@ -117,14 +137,14 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
               });
             }),
             const SizedBox(height: 12),
-            _buildVisitorsInsideList(),
+            _buildVisitorsInsideList(visitorProvider),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildWelcomeCard(String name) {
+  Widget _buildWelcomeCard(String name, String? flatNumber) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -169,14 +189,14 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
               color: Colors.white.withAlpha(50),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.apartment, color: Colors.white, size: 16),
-                SizedBox(width: 6),
+                const Icon(Icons.apartment, color: Colors.white, size: 16),
+                const SizedBox(width: 6),
                 Text(
-                  'Flat: A-101',
-                  style: TextStyle(
+                  'Flat: ${flatNumber ?? 'Not assigned'}',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w500,
                   ),
@@ -189,13 +209,13 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
     );
   }
 
-  Widget _buildQuickStats() {
+  Widget _buildQuickStats(VisitorProvider visitorProvider) {
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
             'Pending',
-            '3',
+            '${visitorProvider.pendingCount}',
             Icons.pending_actions,
             AppColors.pending,
           ),
@@ -204,7 +224,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
         Expanded(
           child: _buildStatCard(
             'Inside',
-            '2',
+            '${visitorProvider.insideCount}',
             Icons.login,
             AppColors.approved,
           ),
@@ -213,7 +233,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
         Expanded(
           child: _buildStatCard(
             'Today',
-            '5',
+            '${visitorProvider.todayCount}',
             Icons.today,
             AppColors.info,
           ),
@@ -280,13 +300,12 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
     );
   }
 
-  Widget _buildPendingRequestsList() {
-    // TODO: Replace with real data from provider
-    final pendingVisitors = [
-      {'name': 'John Doe', 'phone': '9876543210', 'time': '10:30 AM', 'purpose': 'Delivery'},
-      {'name': 'Jane Smith', 'phone': '9876543211', 'time': '11:15 AM', 'purpose': 'Guest'},
-      {'name': 'Bob Wilson', 'phone': '9876543212', 'time': '11:45 AM', 'purpose': 'Maintenance'},
-    ];
+  Widget _buildPendingRequestsList(VisitorProvider visitorProvider) {
+    final pendingVisitors = visitorProvider.flatPendingVisitors;
+
+    if (visitorProvider.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
     if (pendingVisitors.isEmpty) {
       return _buildEmptyState(
@@ -296,13 +315,16 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
     }
 
     return Column(
-      children: pendingVisitors.map((visitor) {
-        return _buildPendingVisitorCard(visitor);
+      children: pendingVisitors.take(3).map((visitor) {
+        return _buildPendingVisitorCard(visitor, visitorProvider);
       }).toList(),
     );
   }
 
-  Widget _buildPendingVisitorCard(Map<String, String> visitor) {
+  Widget _buildPendingVisitorCard(VisitorModel visitor, VisitorProvider visitorProvider) {
+    final timeFormat = DateFormat('hh:mm a');
+    final entryTimeStr = timeFormat.format(visitor.entryTime);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -325,7 +347,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
               CircleAvatar(
                 backgroundColor: AppColors.pending.withAlpha(50),
                 child: Text(
-                  visitor['name']![0],
+                  visitor.name.isNotEmpty ? visitor.name[0] : 'V',
                   style: const TextStyle(
                     color: AppColors.pending,
                     fontWeight: FontWeight.bold,
@@ -338,14 +360,14 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      visitor['name']!,
+                      visitor.name,
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 16,
                       ),
                     ),
                     Text(
-                      visitor['purpose']!,
+                      visitor.purpose ?? 'No purpose specified',
                       style: TextStyle(
                         color: Colors.grey.shade600,
                         fontSize: 13,
@@ -355,7 +377,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
                 ),
               ),
               Text(
-                visitor['time']!,
+                entryTimeStr,
                 style: TextStyle(
                   color: Colors.grey.shade500,
                   fontSize: 12,
@@ -368,7 +390,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => _handleDeny(visitor['name']!),
+                  onPressed: () => _handleDeny(visitor.id, visitorProvider),
                   icon: const Icon(Icons.close, size: 18),
                   label: const Text('Deny'),
                   style: OutlinedButton.styleFrom(
@@ -380,7 +402,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () => _handleApprove(visitor['name']!),
+                  onPressed: () => _handleApprove(visitor.id, visitorProvider),
                   icon: const Icon(Icons.check, size: 18),
                   label: const Text('Approve'),
                   style: ElevatedButton.styleFrom(
@@ -395,12 +417,12 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
     );
   }
 
-  Widget _buildVisitorsInsideList() {
-    // TODO: Replace with real data from provider
-    final visitorsInside = [
-      {'name': 'Mike Johnson', 'entryTime': '09:00 AM', 'purpose': 'Plumber'},
-      {'name': 'Sarah Connor', 'entryTime': '10:00 AM', 'purpose': 'Guest'},
-    ];
+  Widget _buildVisitorsInsideList(VisitorProvider visitorProvider) {
+    final visitorsInside = visitorProvider.flatVisitorsInside;
+
+    if (visitorProvider.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
     if (visitorsInside.isEmpty) {
       return _buildEmptyState(
@@ -410,13 +432,16 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
     }
 
     return Column(
-      children: visitorsInside.map((visitor) {
+      children: visitorsInside.take(3).map((visitor) {
         return _buildVisitorInsideCard(visitor);
       }).toList(),
     );
   }
 
-  Widget _buildVisitorInsideCard(Map<String, String> visitor) {
+  Widget _buildVisitorInsideCard(VisitorModel visitor) {
+    final timeFormat = DateFormat('hh:mm a');
+    final entryTimeStr = timeFormat.format(visitor.entryTime);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -431,7 +456,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
             backgroundColor: AppColors.approved.withAlpha(50),
             radius: 20,
             child: Text(
-              visitor['name']![0],
+              visitor.name.isNotEmpty ? visitor.name[0] : 'V',
               style: const TextStyle(
                 color: AppColors.approved,
                 fontWeight: FontWeight.bold,
@@ -444,13 +469,13 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  visitor['name']!,
+                  visitor.name,
                   style: const TextStyle(
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 Text(
-                  visitor['purpose']!,
+                  visitor.purpose ?? 'No purpose',
                   style: TextStyle(
                     color: Colors.grey.shade600,
                     fontSize: 12,
@@ -479,7 +504,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Since ${visitor['entryTime']}',
+                'Since $entryTimeStr',
                 style: TextStyle(
                   color: Colors.grey.shade500,
                   fontSize: 11,
@@ -516,47 +541,12 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
     );
   }
 
-  Widget _buildRequestsTab() {
-    return const VisitorRequestsTab();
-  }
+  Widget _buildRequestsTab(VisitorProvider visitorProvider) {
+    final pendingVisitors = visitorProvider.flatPendingVisitors;
 
-  Widget _buildHistoryTab() {
-    return const VisitorHistoryTab();
-  }
-
-  void _handleApprove(String visitorName) {
-    // TODO: Implement with provider
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$visitorName approved'),
-        backgroundColor: AppColors.approved,
-      ),
-    );
-  }
-
-  void _handleDeny(String visitorName) {
-    // TODO: Implement with provider
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$visitorName denied'),
-        backgroundColor: AppColors.denied,
-      ),
-    );
-  }
-}
-
-// Embedded Visitor Requests Tab
-class VisitorRequestsTab extends StatelessWidget {
-  const VisitorRequestsTab({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    // TODO: Replace with real data from provider
-    final pendingVisitors = [
-      {'name': 'John Doe', 'phone': '9876543210', 'time': '10:30 AM', 'purpose': 'Delivery'},
-      {'name': 'Jane Smith', 'phone': '9876543211', 'time': '11:15 AM', 'purpose': 'Guest'},
-      {'name': 'Bob Wilson', 'phone': '9876543212', 'time': '11:45 AM', 'purpose': 'Maintenance'},
-    ];
+    if (visitorProvider.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
     if (pendingVisitors.isEmpty) {
       return Center(
@@ -586,22 +576,22 @@ class VisitorRequestsTab extends StatelessWidget {
     }
 
     return RefreshIndicator(
-      onRefresh: () async {
-        // TODO: Refresh data
-        await Future.delayed(const Duration(seconds: 1));
-      },
+      onRefresh: () => visitorProvider.refresh(),
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: pendingVisitors.length,
         itemBuilder: (context, index) {
           final visitor = pendingVisitors[index];
-          return _buildRequestCard(context, visitor);
+          return _buildRequestCard(visitor, visitorProvider);
         },
       ),
     );
   }
 
-  Widget _buildRequestCard(BuildContext context, Map<String, String> visitor) {
+  Widget _buildRequestCard(VisitorModel visitor, VisitorProvider visitorProvider) {
+    final timeFormat = DateFormat('hh:mm a');
+    final entryTimeStr = timeFormat.format(visitor.entryTime);
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
@@ -619,7 +609,7 @@ class VisitorRequestsTab extends StatelessWidget {
                   backgroundColor: AppColors.pending.withAlpha(50),
                   radius: 28,
                   child: Text(
-                    visitor['name']![0],
+                    visitor.name.isNotEmpty ? visitor.name[0] : 'V',
                     style: const TextStyle(
                       color: AppColors.pending,
                       fontWeight: FontWeight.bold,
@@ -633,7 +623,7 @@ class VisitorRequestsTab extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        visitor['name']!,
+                        visitor.name,
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 18,
@@ -645,7 +635,7 @@ class VisitorRequestsTab extends StatelessWidget {
                           Icon(Icons.phone, size: 14, color: Colors.grey.shade500),
                           const SizedBox(width: 4),
                           Text(
-                            visitor['phone']!,
+                            visitor.phone,
                             style: TextStyle(
                               color: Colors.grey.shade600,
                               fontSize: 13,
@@ -678,9 +668,9 @@ class VisitorRequestsTab extends StatelessWidget {
             const SizedBox(height: 16),
             Row(
               children: [
-                _buildInfoItem(Icons.access_time, 'Time', visitor['time']!),
+                _buildInfoItem(Icons.access_time, 'Time', entryTimeStr),
                 const SizedBox(width: 24),
-                _buildInfoItem(Icons.notes, 'Purpose', visitor['purpose']!),
+                _buildInfoItem(Icons.notes, 'Purpose', visitor.purpose ?? 'Not specified'),
               ],
             ),
             const SizedBox(height: 16),
@@ -688,14 +678,7 @@ class VisitorRequestsTab extends StatelessWidget {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('${visitor['name']} denied'),
-                          backgroundColor: AppColors.denied,
-                        ),
-                      );
-                    },
+                    onPressed: () => _handleDeny(visitor.id, visitorProvider),
                     icon: const Icon(Icons.close),
                     label: const Text('Deny'),
                     style: OutlinedButton.styleFrom(
@@ -708,14 +691,7 @@ class VisitorRequestsTab extends StatelessWidget {
                 const SizedBox(width: 16),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('${visitor['name']} approved'),
-                          backgroundColor: AppColors.approved,
-                        ),
-                      );
-                    },
+                    onPressed: () => _handleApprove(visitor.id, visitorProvider),
                     icon: const Icon(Icons.check),
                     label: const Text('Approve'),
                     style: ElevatedButton.styleFrom(
@@ -759,11 +735,49 @@ class VisitorRequestsTab extends StatelessWidget {
       ],
     );
   }
+
+  Widget _buildHistoryTab(VisitorProvider visitorProvider) {
+    return VisitorHistoryTab(visitorProvider: visitorProvider);
+  }
+
+  Future<void> _handleApprove(String visitorId, VisitorProvider visitorProvider) async {
+    final user = context.read<AuthProvider>().user;
+    if (user == null) return;
+
+    final success = await visitorProvider.approveVisitor(visitorId, user.uid);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(success ? 'Visitor approved' : 'Failed to approve visitor'),
+        backgroundColor: success ? AppColors.approved : AppColors.error,
+      ),
+    );
+  }
+
+  Future<void> _handleDeny(String visitorId, VisitorProvider visitorProvider) async {
+    final user = context.read<AuthProvider>().user;
+    if (user == null) return;
+
+    final success = await visitorProvider.denyVisitor(visitorId, user.uid);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(success ? 'Visitor denied' : 'Failed to deny visitor'),
+        backgroundColor: success ? AppColors.denied : AppColors.error,
+      ),
+    );
+  }
 }
 
 // Embedded Visitor History Tab
 class VisitorHistoryTab extends StatefulWidget {
-  const VisitorHistoryTab({super.key});
+  final VisitorProvider visitorProvider;
+
+  const VisitorHistoryTab({super.key, required this.visitorProvider});
 
   @override
   State<VisitorHistoryTab> createState() => _VisitorHistoryTabState();
@@ -774,18 +788,10 @@ class _VisitorHistoryTabState extends State<VisitorHistoryTab> {
 
   @override
   Widget build(BuildContext context) {
-    // TODO: Replace with real data from provider
-    final allVisitors = [
-      {'name': 'Mike Johnson', 'time': '09:00 AM', 'status': 'approved', 'purpose': 'Plumber'},
-      {'name': 'Sarah Connor', 'time': '10:00 AM', 'status': 'approved', 'purpose': 'Guest'},
-      {'name': 'John Doe', 'time': 'Yesterday', 'status': 'checked_out', 'purpose': 'Delivery'},
-      {'name': 'Tom Hardy', 'time': 'Yesterday', 'status': 'denied', 'purpose': 'Unknown'},
-      {'name': 'Lisa Park', 'time': '2 days ago', 'status': 'checked_out', 'purpose': 'Maintenance'},
-    ];
-
+    final allVisitors = widget.visitorProvider.flatVisitors;
     final filteredVisitors = _selectedFilter == 'All'
         ? allVisitors
-        : allVisitors.where((v) => v['status'] == _selectedFilter.toLowerCase()).toList();
+        : widget.visitorProvider.getVisitorsByStatus(_selectedFilter.toLowerCase());
 
     return Column(
       children: [
@@ -810,36 +816,36 @@ class _VisitorHistoryTabState extends State<VisitorHistoryTab> {
 
         // Visitor List
         Expanded(
-          child: filteredVisitors.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.history, size: 64, color: Colors.grey.shade300),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No visitor history',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey.shade500,
-                        ),
+          child: widget.visitorProvider.isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : filteredVisitors.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.history, size: 64, color: Colors.grey.shade300),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No visitor history',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: () async {
-                    await Future.delayed(const Duration(seconds: 1));
-                  },
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: filteredVisitors.length,
-                    itemBuilder: (context, index) {
-                      final visitor = filteredVisitors[index];
-                      return _buildHistoryCard(visitor);
-                    },
-                  ),
-                ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: () => widget.visitorProvider.refresh(),
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: filteredVisitors.length,
+                        itemBuilder: (context, index) {
+                          final visitor = filteredVisitors[index];
+                          return _buildHistoryCard(visitor);
+                        },
+                      ),
+                    ),
         ),
       ],
     );
@@ -866,11 +872,14 @@ class _VisitorHistoryTabState extends State<VisitorHistoryTab> {
     );
   }
 
-  Widget _buildHistoryCard(Map<String, String> visitor) {
-    final status = visitor['status']!;
+  Widget _buildHistoryCard(VisitorModel visitor) {
+    final status = visitor.status;
     final statusColor = _getStatusColor(status);
     final statusIcon = _getStatusIcon(status);
     final statusLabel = _getStatusLabel(status);
+    final timeFormat = DateFormat('hh:mm a');
+    final dateFormat = DateFormat('MMM d');
+    final entryTimeStr = '${dateFormat.format(visitor.entryTime)} at ${timeFormat.format(visitor.entryTime)}';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -883,7 +892,7 @@ class _VisitorHistoryTabState extends State<VisitorHistoryTab> {
         leading: CircleAvatar(
           backgroundColor: statusColor.withAlpha(50),
           child: Text(
-            visitor['name']![0],
+            visitor.name.isNotEmpty ? visitor.name[0] : 'V',
             style: TextStyle(
               color: statusColor,
               fontWeight: FontWeight.bold,
@@ -891,17 +900,17 @@ class _VisitorHistoryTabState extends State<VisitorHistoryTab> {
           ),
         ),
         title: Text(
-          visitor['name']!,
+          visitor.name,
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 4),
-            Text(visitor['purpose']!),
+            Text(visitor.purpose ?? 'No purpose'),
             const SizedBox(height: 4),
             Text(
-              visitor['time']!,
+              entryTimeStr,
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.grey.shade500,
