@@ -34,6 +34,11 @@ class FlatModel {
     );
   }
 
+  // Alias for fromJson (used by services)
+  factory FlatModel.fromMap(Map<String, dynamic> map, String id) {
+    return FlatModel.fromJson(map, id);
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'flatNumber': flatNumber,
@@ -45,6 +50,9 @@ class FlatModel {
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
   }
+
+  // Alias for toJson (used by services)
+  Map<String, dynamic> toMap() => toJson();
 
   FlatModel copyWith({
     String? id,

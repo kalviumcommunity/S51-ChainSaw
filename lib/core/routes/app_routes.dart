@@ -7,6 +7,7 @@ import '../../screens/auth/otp_verification_screen.dart';
 import '../../screens/auth/role_selection_screen.dart';
 import '../../screens/guard/guard_home_screen.dart';
 import '../../screens/guard/add_visitor_screen.dart';
+import '../../screens/resident/resident_home_screen.dart';
 import '../../screens/profile/profile_screen.dart';
 
 class AppRoutes {
@@ -57,8 +58,10 @@ class AppRoutes {
       case profile:
         return MaterialPageRoute(builder: (_) => const ProfileScreen());
 
-      // Placeholder routes
       case residentHome:
+        return MaterialPageRoute(builder: (_) => const ResidentHomeScreen());
+
+      // Placeholder routes
       case adminHome:
         return MaterialPageRoute(
           builder: (_) => Scaffold(
