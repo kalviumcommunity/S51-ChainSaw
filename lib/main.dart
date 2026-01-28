@@ -6,6 +6,7 @@ import 'core/theme/app_theme.dart';
 import 'core/routes/app_routes.dart';
 import 'providers/auth_provider.dart';
 import 'providers/visitor_provider.dart';
+import 'providers/admin_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +28,7 @@ class GateKeeperApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => VisitorProvider()),
+        ChangeNotifierProvider(create: (_) => AdminProvider()),
       ],
       child: MaterialApp(
         title: 'GateKeeper',

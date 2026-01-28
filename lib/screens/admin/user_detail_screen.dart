@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../models/user_model.dart';
+import '../../providers/admin_provider.dart';
 
 class UserDetailScreen extends StatefulWidget {
   final UserModel user;
@@ -473,10 +475,8 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          // TODO: Replace with real activity data
-          _buildActivityItem('Login', 'Today at 9:00 AM'),
-          _buildActivityItem('Profile Updated', 'Yesterday at 3:30 PM'),
-          _buildActivityItem('Visitor Approved', '2 days ago'),
+          _buildActivityItem('Account Created', DateFormat('MMM d, yyyy').format(_user.createdAt)),
+          _buildActivityItem('Last Updated', DateFormat('MMM d, yyyy').format(_user.updatedAt)),
         ],
       ),
     );
@@ -546,18 +546,77 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     );
   }
 
-  void _saveChanges() {
-    // TODO: Implement save with provider
+  Future<void> _saveChanges() async {
+    if (_nameController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Name cannot be empty'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     setState(() {
-      _isEditing = false;
+      _isLoading = true;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('User update will be implemented with provider'),
-        backgroundColor: AppColors.info,
-      ),
+    final adminProvider = context.read<AdminProvider>();
+
+    final success = await adminProvider.updateUserDetails(
+      userId: _user.uid,
+      name: _nameController.text.trim(),
+      phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
+      email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+      flatNumber: _selectedRole == AppConstants.roleResident
+          ? (_flatController.text.trim().isEmpty ? null : _flatController.text.trim())
+          : null,
+      role: _selectedRole,
     );
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (success) {
+      // Update local user data
+      setState(() {
+        _user = UserModel(
+          uid: _user.uid,
+          name: _nameController.text.trim(),
+          role: _selectedRole,
+          phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
+          email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+          photoUrl: _user.photoUrl,
+          flatNumber: _selectedRole == AppConstants.roleResident
+              ? (_flatController.text.trim().isEmpty ? null : _flatController.text.trim())
+              : null,
+          authMethods: _user.authMethods,
+          fcmToken: _user.fcmToken,
+          createdAt: _user.createdAt,
+          updatedAt: DateTime.now(),
+        );
+        _isEditing = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('User updated successfully'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(adminProvider.errorMessage ?? 'Failed to update user'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   void _handleMenuAction(String action) {
@@ -580,14 +639,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context); // Close dialog
-              // TODO: Implement delete with provider
-              Navigator.pop(context); // Go back to user list
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('User deletion will be implemented with provider'),
-                  backgroundColor: AppColors.info,
-                ),
-              );
+              _deleteUser();
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
@@ -597,6 +649,38 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _deleteUser() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    final adminProvider = context.read<AdminProvider>();
+    final success = await adminProvider.deleteUser(_user.uid);
+
+    if (!mounted) return;
+
+    if (success) {
+      Navigator.pop(context); // Go back to user list
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('User deleted successfully'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(adminProvider.errorMessage ?? 'Failed to delete user'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   Color _getRoleColor(String role) {
