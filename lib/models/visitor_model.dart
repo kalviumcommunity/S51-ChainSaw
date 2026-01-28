@@ -52,6 +52,11 @@ class VisitorModel {
     );
   }
 
+  // Alias for fromJson (used by services)
+  factory VisitorModel.fromMap(Map<String, dynamic> map, String id) {
+    return VisitorModel.fromJson(map, id);
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'name': name,
@@ -69,6 +74,9 @@ class VisitorModel {
       'purpose': purpose,
     };
   }
+
+  // Alias for toJson (used by services)
+  Map<String, dynamic> toMap() => toJson();
 
   VisitorModel copyWith({
     String? id,
