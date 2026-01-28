@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/visitor_provider.dart';
 
 class AddVisitorScreen extends StatefulWidget {
   const AddVisitorScreen({super.key});
@@ -240,7 +243,7 @@ class _AddVisitorScreenState extends State<AddVisitorScreen> {
     );
   }
 
-  void _submitVisitor() async {
+  Future<void> _submitVisitor() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -249,25 +252,61 @@ class _AddVisitorScreenState extends State<AddVisitorScreen> {
       _isLoading = true;
     });
 
-    // TODO: Implement with provider
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final authProvider = context.read<AuthProvider>();
+      final visitorProvider = context.read<VisitorProvider>();
+      final user = authProvider.user;
 
-    if (!mounted) return;
+      if (user == null) {
+        throw Exception('User not logged in');
+      }
 
-    setState(() {
-      _isLoading = false;
-    });
+      final success = await visitorProvider.addVisitor(
+        name: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        flatNumber: _flatController.text.trim().toUpperCase(),
+        guardId: user.uid,
+        guardName: user.name,
+        purpose: _purposeController.text.trim().isNotEmpty
+            ? _purposeController.text.trim()
+            : null,
+      );
 
-    // Show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Visitor registered successfully!'),
-        backgroundColor: AppColors.success,
-      ),
-    );
+      if (!mounted) return;
 
-    // Go back to guard home
-    Navigator.pop(context);
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Visitor registered successfully!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(visitorProvider.errorMessage ?? 'Failed to register visitor'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 }
