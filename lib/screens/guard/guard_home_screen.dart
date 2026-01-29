@@ -1,9 +1,11 @@
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/routes/app_routes.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/visitor_provider.dart';
+import '../../models/visitor_model.dart';
 import 'add_visitor_screen.dart';
 
 class GuardHomeScreen extends StatefulWidget {
@@ -21,6 +23,11 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+
+    // Initialize visitor provider for guard
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<VisitorProvider>().initializeForGuard();
+    });
   }
 
   @override
@@ -31,8 +38,8 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AuthProvider>(
-      builder: (context, authProvider, child) {
+    return Consumer2<AuthProvider, VisitorProvider>(
+      builder: (context, authProvider, visitorProvider, child) {
         final user = authProvider.user;
         final guardName = user?.name ?? 'Guard';
 
@@ -55,24 +62,30 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
               indicatorColor: Colors.white,
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,
-              tabs: const [
-                Tab(text: 'Pending', icon: Icon(Icons.hourglass_empty)),
-                Tab(text: 'Inside', icon: Icon(Icons.people)),
+              tabs: [
+                Tab(
+                  text: 'Pending (${visitorProvider.pendingCount})',
+                  icon: const Icon(Icons.hourglass_empty),
+                ),
+                Tab(
+                  text: 'Inside (${visitorProvider.insideCount})',
+                  icon: const Icon(Icons.people),
+                ),
               ],
             ),
           ),
           body: Column(
             children: [
               // Welcome Banner
-              _buildWelcomeBanner(guardName, user?.photoUrl),
+              _buildWelcomeBanner(guardName, user?.photoUrl, visitorProvider),
 
               // Tab Content
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
                   children: [
-                    _buildPendingTab(),
-                    _buildInsideTab(),
+                    _buildPendingTab(visitorProvider),
+                    _buildInsideTab(visitorProvider),
                   ],
                 ),
               ),
@@ -89,7 +102,8 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
     );
   }
 
-  Widget _buildWelcomeBanner(String guardName, String? photoUrl) {
+  Widget _buildWelcomeBanner(
+      String guardName, String? photoUrl, VisitorProvider visitorProvider) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -143,12 +157,19 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
                         fontSize: 14,
                       ),
                     ),
+                    const SizedBox(width: 16),
+                    Text(
+                      'Today: ${visitorProvider.todayCount} visitors',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 14,
+                      ),
+                    ),
                   ],
                 ),
               ],
             ),
           ),
-          // Quick profile access
           IconButton(
             icon: const Icon(Icons.settings, color: AppColors.guardColor),
             onPressed: () {
@@ -160,9 +181,12 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
     );
   }
 
-  Widget _buildPendingTab() {
-    // TODO: Replace with actual data from provider
-    final List<Map<String, dynamic>> pendingVisitors = [];
+  Widget _buildPendingTab(VisitorProvider visitorProvider) {
+    if (visitorProvider.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final pendingVisitors = visitorProvider.pendingVisitors;
 
     if (pendingVisitors.isEmpty) {
       return _buildEmptyState(
@@ -172,18 +196,24 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: pendingVisitors.length,
-      itemBuilder: (context, index) {
-        return _buildVisitorCard(pendingVisitors[index], showStatus: true);
-      },
+    return RefreshIndicator(
+      onRefresh: () => visitorProvider.refresh(),
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: pendingVisitors.length,
+        itemBuilder: (context, index) {
+          return _buildVisitorCard(pendingVisitors[index], showStatus: true);
+        },
+      ),
     );
   }
 
-  Widget _buildInsideTab() {
-    // TODO: Replace with actual data from provider
-    final List<Map<String, dynamic>> insideVisitors = [];
+  Widget _buildInsideTab(VisitorProvider visitorProvider) {
+    if (visitorProvider.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final insideVisitors = visitorProvider.visitorsInside;
 
     if (insideVisitors.isEmpty) {
       return _buildEmptyState(
@@ -193,12 +223,15 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: insideVisitors.length,
-      itemBuilder: (context, index) {
-        return _buildVisitorCard(insideVisitors[index], showCheckout: true);
-      },
+    return RefreshIndicator(
+      onRefresh: () => visitorProvider.refresh(),
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: insideVisitors.length,
+        itemBuilder: (context, index) {
+          return _buildVisitorCard(insideVisitors[index], showCheckout: true);
+        },
+      ),
     );
   }
 
@@ -236,10 +269,13 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
   }
 
   Widget _buildVisitorCard(
-    Map<String, dynamic> visitor, {
+    VisitorModel visitor, {
     bool showStatus = false,
     bool showCheckout = false,
   }) {
+    final timeFormat = DateFormat('hh:mm a');
+    final entryTimeStr = timeFormat.format(visitor.entryTime);
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -253,7 +289,9 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
                 CircleAvatar(
                   backgroundColor: AppColors.primary.withAlpha(50),
                   child: Text(
-                    (visitor['name'] as String? ?? 'V').substring(0, 1).toUpperCase(),
+                    visitor.name.isNotEmpty
+                        ? visitor.name[0].toUpperCase()
+                        : 'V',
                     style: const TextStyle(
                       color: AppColors.primary,
                       fontWeight: FontWeight.bold,
@@ -266,14 +304,14 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        visitor['name'] ?? 'Visitor',
+                        visitor.name,
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
                       ),
                       Text(
-                        visitor['phone'] ?? '',
+                        visitor.phone,
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 14,
@@ -282,7 +320,7 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
                     ],
                   ),
                 ),
-                if (showStatus) _buildStatusBadge(visitor['status'] ?? 'pending'),
+                if (showStatus) _buildStatusBadge(visitor.status),
               ],
             ),
             const Divider(height: 24),
@@ -292,25 +330,38 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
                 Icon(Icons.apartment, size: 18, color: Colors.grey.shade600),
                 const SizedBox(width: 6),
                 Text(
-                  'Flat ${visitor['flatNumber'] ?? 'N/A'}',
+                  'Flat ${visitor.flatNumber}',
                   style: TextStyle(color: Colors.grey.shade700),
                 ),
                 const Spacer(),
                 Icon(Icons.access_time, size: 18, color: Colors.grey.shade600),
                 const SizedBox(width: 6),
                 Text(
-                  visitor['entryTime'] ?? '--:--',
+                  entryTimeStr,
                   style: TextStyle(color: Colors.grey.shade700),
                 ),
               ],
             ),
+            if (visitor.purpose != null && visitor.purpose!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.notes, size: 18, color: Colors.grey.shade600),
+                  const SizedBox(width: 6),
+                  Text(
+                    visitor.purpose!,
+                    style: TextStyle(color: Colors.grey.shade700),
+                  ),
+                ],
+              ),
+            ],
             // Checkout Button
             if (showCheckout) ...[
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () => _checkoutVisitor(visitor['id']),
+                  onPressed: () => _checkoutVisitor(visitor.id),
                   icon: const Icon(Icons.exit_to_app),
                   label: const Text('Check Out'),
                   style: OutlinedButton.styleFrom(
@@ -373,12 +424,20 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
     );
   }
 
-  void _checkoutVisitor(String? visitorId) {
-    // TODO: Implement checkout logic with provider
+  Future<void> _checkoutVisitor(String visitorId) async {
+    final visitorProvider = context.read<VisitorProvider>();
+    final success = await visitorProvider.checkoutVisitor(visitorId);
+
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Visitor checked out successfully'),
-        backgroundColor: AppColors.success,
+      SnackBar(
+        content: Text(
+          success
+              ? 'Visitor checked out successfully'
+              : 'Failed to checkout visitor',
+        ),
+        backgroundColor: success ? AppColors.success : AppColors.error,
       ),
     );
   }

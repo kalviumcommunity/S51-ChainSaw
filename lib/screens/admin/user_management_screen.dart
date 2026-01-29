@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../models/user_model.dart';
+import '../../providers/admin_provider.dart';
 import 'user_detail_screen.dart';
 
 class UserManagementScreen extends StatefulWidget {
@@ -13,73 +15,6 @@ class UserManagementScreen extends StatefulWidget {
 
 class _UserManagementScreenState extends State<UserManagementScreen> {
   final TextEditingController _searchController = TextEditingController();
-  String _selectedFilter = 'All';
-  bool _isLoading = false;
-
-  // TODO: Replace with real data from provider
-  final List<UserModel> _mockUsers = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadMockUsers();
-  }
-
-  void _loadMockUsers() {
-    // Mock data for UI development
-    _mockUsers.addAll([
-      UserModel(
-        uid: '1',
-        name: 'John Guard',
-        role: AppConstants.roleGuard,
-        phone: '9876543210',
-        email: 'john@example.com',
-        authMethods: ['phone'],
-        createdAt: DateTime.now().subtract(const Duration(days: 30)),
-        updatedAt: DateTime.now(),
-      ),
-      UserModel(
-        uid: '2',
-        name: 'Jane Resident',
-        role: AppConstants.roleResident,
-        phone: '9876543211',
-        email: 'jane@example.com',
-        flatNumber: 'A-101',
-        authMethods: ['phone', 'google.com'],
-        createdAt: DateTime.now().subtract(const Duration(days: 20)),
-        updatedAt: DateTime.now(),
-      ),
-      UserModel(
-        uid: '3',
-        name: 'Bob Wilson',
-        role: AppConstants.roleResident,
-        phone: '9876543212',
-        flatNumber: 'B-202',
-        authMethods: ['phone'],
-        createdAt: DateTime.now().subtract(const Duration(days: 10)),
-        updatedAt: DateTime.now(),
-      ),
-      UserModel(
-        uid: '4',
-        name: 'Admin User',
-        role: AppConstants.roleAdmin,
-        phone: '9876543213',
-        email: 'admin@example.com',
-        authMethods: ['phone', 'password'],
-        createdAt: DateTime.now().subtract(const Duration(days: 60)),
-        updatedAt: DateTime.now(),
-      ),
-      UserModel(
-        uid: '5',
-        name: 'Security Guard 2',
-        role: AppConstants.roleGuard,
-        phone: '9876543214',
-        authMethods: ['phone'],
-        createdAt: DateTime.now().subtract(const Duration(days: 5)),
-        updatedAt: DateTime.now(),
-      ),
-    ]);
-  }
 
   @override
   void dispose() {
@@ -87,60 +22,31 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     super.dispose();
   }
 
-  List<UserModel> get _filteredUsers {
-    var users = _mockUsers;
-
-    // Filter by role
-    if (_selectedFilter != 'All') {
-      users = users.where((user) => user.role == _selectedFilter.toLowerCase()).toList();
-    }
-
-    // Filter by search query
-    final query = _searchController.text.toLowerCase();
-    if (query.isNotEmpty) {
-      users = users.where((user) =>
-          user.name.toLowerCase().contains(query) ||
-          (user.phone?.contains(query) ?? false) ||
-          (user.email?.toLowerCase().contains(query) ?? false)).toList();
-    }
-
-    return users;
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('User Management'),
-        backgroundColor: AppColors.adminColor,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person_add),
-            onPressed: _showAddUserDialog,
-            tooltip: 'Add User',
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Search and Filter Section
-          _buildSearchAndFilter(),
+    return Consumer<AdminProvider>(
+      builder: (context, adminProvider, child) {
+        return Column(
+          children: [
+            // Search and Filter Section
+            _buildSearchAndFilter(adminProvider),
 
-          // User Count Summary
-          _buildUserCountSummary(),
+            // User Count Summary
+            _buildUserCountSummary(adminProvider),
 
-          // User List
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _buildUserList(),
-          ),
-        ],
-      ),
+            // User List
+            Expanded(
+              child: adminProvider.isLoading && adminProvider.allUsers.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : _buildUserList(adminProvider),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildSearchAndFilter() {
+  Widget _buildSearchAndFilter(AdminProvider adminProvider) {
     return Container(
       padding: const EdgeInsets.all(16),
       color: Colors.grey.shade50,
@@ -157,7 +63,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       icon: const Icon(Icons.clear),
                       onPressed: () {
                         _searchController.clear();
-                        setState(() {});
+                        adminProvider.setSearchQuery('');
                       },
                     )
                   : null,
@@ -170,7 +76,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
             onChanged: (value) {
-              setState(() {});
+              adminProvider.setSearchQuery(value);
             },
           ),
           const SizedBox(height: 12),
@@ -180,13 +86,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildFilterChip('All'),
+                _buildFilterChip('All', adminProvider),
                 const SizedBox(width: 8),
-                _buildFilterChip('Guard'),
+                _buildFilterChip('Guard', adminProvider),
                 const SizedBox(width: 8),
-                _buildFilterChip('Resident'),
+                _buildFilterChip('Resident', adminProvider),
                 const SizedBox(width: 8),
-                _buildFilterChip('Admin'),
+                _buildFilterChip('Admin', adminProvider),
               ],
             ),
           ),
@@ -195,16 +101,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
-  Widget _buildFilterChip(String label) {
-    final isSelected = _selectedFilter == label;
+  Widget _buildFilterChip(String label, AdminProvider adminProvider) {
+    final isSelected = adminProvider.roleFilter == label;
 
     return FilterChip(
       label: Text(label),
       selected: isSelected,
       onSelected: (selected) {
-        setState(() {
-          _selectedFilter = label;
-        });
+        adminProvider.setRoleFilter(label);
       },
       selectedColor: AppColors.adminColor.withAlpha(50),
       checkmarkColor: AppColors.adminColor,
@@ -215,9 +119,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
-  Widget _buildUserCountSummary() {
-    final filteredCount = _filteredUsers.length;
-    final totalCount = _mockUsers.length;
+  Widget _buildUserCountSummary(AdminProvider adminProvider) {
+    final filteredCount = adminProvider.filteredUsers.length;
+    final totalCount = adminProvider.allUsers.length;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -233,11 +137,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           ),
           const Spacer(),
           TextButton.icon(
-            onPressed: () {
-              // TODO: Implement export
-            },
-            icon: const Icon(Icons.download, size: 18),
-            label: const Text('Export'),
+            onPressed: _showAddUserDialog,
+            icon: const Icon(Icons.person_add, size: 18),
+            label: const Text('Add User'),
             style: TextButton.styleFrom(
               foregroundColor: AppColors.adminColor,
             ),
@@ -247,8 +149,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
-  Widget _buildUserList() {
-    final users = _filteredUsers;
+  Widget _buildUserList(AdminProvider adminProvider) {
+    final users = adminProvider.filteredUsers;
 
     if (users.isEmpty) {
       return Center(
@@ -278,10 +180,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     }
 
     return RefreshIndicator(
-      onRefresh: () async {
-        // TODO: Refresh from provider
-        await Future.delayed(const Duration(seconds: 1));
-      },
+      onRefresh: () => adminProvider.loadAllUsers(),
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         itemCount: users.length,
@@ -464,6 +363,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   Widget _buildAddUserSheet() {
     final nameController = TextEditingController();
     final phoneController = TextEditingController();
+    final emailController = TextEditingController();
+    final flatController = TextEditingController();
     String selectedRole = AppConstants.roleResident;
 
     return StatefulBuilder(
@@ -520,6 +421,30 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ),
               const SizedBox(height: 8),
 
+              // Email Field
+              TextField(
+                controller: emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email (Optional)',
+                  prefixIcon: Icon(Icons.email),
+                ),
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 16),
+
+              // Flat Number Field (only for residents)
+              if (selectedRole == AppConstants.roleResident) ...[
+                TextField(
+                  controller: flatController,
+                  decoration: const InputDecoration(
+                    labelText: 'Flat Number',
+                    prefixIcon: Icon(Icons.apartment),
+                  ),
+                  textCapitalization: TextCapitalization.characters,
+                ),
+                const SizedBox(height: 16),
+              ],
+
               // Role Selection
               const Text(
                 'Select Role',
@@ -565,12 +490,23 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // TODO: Implement add user with provider
+                  onPressed: () async {
+                    if (nameController.text.isEmpty || phoneController.text.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please fill in name and phone number'),
+                          backgroundColor: AppColors.error,
+                        ),
+                      );
+                      return;
+                    }
+
+                    // Note: Creating users requires Firebase Auth
+                    // This is a placeholder - full user creation would need admin SDK
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('User creation will be implemented with provider'),
+                        content: Text('User creation requires admin SDK - feature coming soon'),
                         backgroundColor: AppColors.info,
                       ),
                     );
