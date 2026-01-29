@@ -1,4 +1,4 @@
-Shaswath Kattalai, Now
+
 # GateKeeper 🛡️
 
 A lightweight, real-time visitor management system built with Flutter and Firebase.
