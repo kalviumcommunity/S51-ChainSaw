@@ -1,14 +1,19 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
+import '../models/flat_model.dart';
 import '../services/admin_service.dart';
 import '../services/analytics_service.dart';
+import '../services/flat_service.dart';
+import '../services/activity_log_service.dart';
 
 enum AdminStatus { initial, loading, loaded, error }
 
 class AdminProvider extends ChangeNotifier {
   final AdminService _adminService = AdminService();
   final AnalyticsService _analyticsService = AnalyticsService();
+  final FlatService _flatService = FlatService();
+  final ActivityLogService _activityLogService = ActivityLogService();
 
   // State
   AdminStatus _status = AdminStatus.initial;
@@ -26,8 +31,23 @@ class AdminProvider extends ChangeNotifier {
   String _searchQuery = '';
   String _roleFilter = 'All';
 
+  // Flat management data
+  List<FlatModel> _allFlats = [];
+  List<FlatModel> _filteredFlats = [];
+  String _flatSearchQuery = '';
+  String _blockFilter = 'All';
+  String _statusFilter = 'All'; // All, Occupied, Vacant
+
+  // Activity log data
+  List<ActivityLog> _activityLogs = [];
+  List<ActivityLog> _filteredLogs = [];
+  String _logCategoryFilter = 'All';
+  String _logDateFilter = 'Today';
+
   // Stream subscriptions
   StreamSubscription<List<UserModel>>? _usersSubscription;
+  StreamSubscription<List<FlatModel>>? _flatsSubscription;
+  StreamSubscription<List<ActivityLog>>? _logsSubscription;
 
   // Getters
   AdminStatus get status => _status;
@@ -44,6 +64,19 @@ class AdminProvider extends ChangeNotifier {
   String get searchQuery => _searchQuery;
   String get roleFilter => _roleFilter;
 
+  // Flat getters
+  List<FlatModel> get allFlats => _allFlats;
+  List<FlatModel> get filteredFlats => _filteredFlats;
+  String get flatSearchQuery => _flatSearchQuery;
+  String get blockFilter => _blockFilter;
+  String get statusFilter => _statusFilter;
+
+  // Activity log getters
+  List<ActivityLog> get activityLogs => _activityLogs;
+  List<ActivityLog> get filteredLogs => _filteredLogs;
+  String get logCategoryFilter => _logCategoryFilter;
+  String get logDateFilter => _logDateFilter;
+
   // Computed getters for dashboard
   int get totalUsers => _dashboardStats?.totalUsers ?? 0;
   int get totalFlats => _dashboardStats?.totalFlats ?? 0;
@@ -53,6 +86,15 @@ class AdminProvider extends ChangeNotifier {
   int get totalGuards => _dashboardStats?.totalGuards ?? 0;
   int get totalResidents => _dashboardStats?.totalResidents ?? 0;
   int get totalAdmins => _dashboardStats?.totalAdmins ?? 0;
+
+  // Flat computed getters
+  int get occupiedFlatsCount => _allFlats.where((f) => f.residentIds.isNotEmpty).length;
+  int get vacantFlatsCount => _allFlats.where((f) => f.residentIds.isEmpty).length;
+  List<String> get availableBlocks {
+    final blocks = _allFlats.map((f) => f.block).toSet().toList();
+    blocks.sort();
+    return ['All', ...blocks];
+  }
 
   // ============================================================
   // INITIALIZATION
@@ -71,6 +113,8 @@ class AdminProvider extends ChangeNotifier {
         loadFlatStats(),
         loadVisitorTrend(),
         loadAllUsers(),
+        loadAllFlats(),
+        loadActivityLogs(),
       ]);
 
       _status = AdminStatus.loaded;
@@ -82,7 +126,7 @@ class AdminProvider extends ChangeNotifier {
     }
   }
 
-  /// Initialize with real-time user stream
+  /// Initialize with real-time streams
   void initializeWithStream() {
     _status = AdminStatus.loading;
     notifyListeners();
@@ -92,7 +136,7 @@ class AdminProvider extends ChangeNotifier {
     _usersSubscription = _adminService.streamAllUsers().listen(
       (users) {
         _allUsers = users;
-        _applyFilters();
+        _applyUserFilters();
         _status = AdminStatus.loaded;
         notifyListeners();
       },
@@ -100,6 +144,32 @@ class AdminProvider extends ChangeNotifier {
         _errorMessage = error.toString();
         _status = AdminStatus.error;
         notifyListeners();
+      },
+    );
+
+    // Stream all flats
+    _flatsSubscription?.cancel();
+    _flatsSubscription = _flatService.streamAllFlats().listen(
+      (flats) {
+        _allFlats = flats;
+        _applyFlatFilters();
+        notifyListeners();
+      },
+      onError: (error) {
+        debugPrint('Failed to stream flats: $error');
+      },
+    );
+
+    // Stream activity logs
+    _logsSubscription?.cancel();
+    _logsSubscription = _activityLogService.streamActivityLogs(limit: 100).listen(
+      (logs) {
+        _activityLogs = logs;
+        _applyLogFilters();
+        notifyListeners();
+      },
+      onError: (error) {
+        debugPrint('Failed to stream activity logs: $error');
       },
     );
 
@@ -172,7 +242,7 @@ class AdminProvider extends ChangeNotifier {
   Future<void> loadAllUsers() async {
     try {
       _allUsers = await _adminService.getAllUsers();
-      _applyFilters();
+      _applyUserFilters();
       notifyListeners();
     } catch (e) {
       debugPrint('Failed to load all users: $e');
@@ -183,19 +253,19 @@ class AdminProvider extends ChangeNotifier {
   /// Search users
   void setSearchQuery(String query) {
     _searchQuery = query;
-    _applyFilters();
+    _applyUserFilters();
     notifyListeners();
   }
 
   /// Filter by role
   void setRoleFilter(String role) {
     _roleFilter = role;
-    _applyFilters();
+    _applyUserFilters();
     notifyListeners();
   }
 
   /// Apply search and role filters
-  void _applyFilters() {
+  void _applyUserFilters() {
     var users = _allUsers;
 
     // Apply role filter
@@ -287,6 +357,7 @@ class AdminProvider extends ChangeNotifier {
       await _adminService.assignUserToFlat(userId, flatNumber);
       await loadAllUsers();
       await loadFlatStats();
+      await loadAllFlats();
       return true;
     } catch (e) {
       _errorMessage = e.toString();
@@ -301,6 +372,7 @@ class AdminProvider extends ChangeNotifier {
       await _adminService.removeUserFromFlat(userId, flatNumber);
       await loadAllUsers();
       await loadFlatStats();
+      await loadAllFlats();
       return true;
     } catch (e) {
       _errorMessage = e.toString();
@@ -318,6 +390,261 @@ class AdminProvider extends ChangeNotifier {
       notifyListeners();
       return [];
     }
+  }
+
+  // ============================================================
+  // FLAT MANAGEMENT
+  // ============================================================
+
+  /// Load all flats
+  Future<void> loadAllFlats() async {
+    try {
+      _allFlats = await _flatService.getAllFlats();
+      _applyFlatFilters();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Failed to load all flats: $e');
+      _errorMessage = e.toString();
+    }
+  }
+
+  /// Set flat search query
+  void setFlatSearchQuery(String query) {
+    _flatSearchQuery = query;
+    _applyFlatFilters();
+    notifyListeners();
+  }
+
+  /// Set block filter
+  void setBlockFilter(String block) {
+    _blockFilter = block;
+    _applyFlatFilters();
+    notifyListeners();
+  }
+
+  /// Set status filter (All, Occupied, Vacant)
+  void setStatusFilter(String status) {
+    _statusFilter = status;
+    _applyFlatFilters();
+    notifyListeners();
+  }
+
+  /// Apply flat filters
+  void _applyFlatFilters() {
+    var flats = _allFlats;
+
+    // Apply block filter
+    if (_blockFilter != 'All') {
+      flats = flats.where((flat) => flat.block == _blockFilter).toList();
+    }
+
+    // Apply status filter
+    if (_statusFilter == 'Occupied') {
+      flats = flats.where((flat) => flat.residentIds.isNotEmpty).toList();
+    } else if (_statusFilter == 'Vacant') {
+      flats = flats.where((flat) => flat.residentIds.isEmpty).toList();
+    }
+
+    // Apply search filter
+    if (_flatSearchQuery.isNotEmpty) {
+      final query = _flatSearchQuery.toLowerCase();
+      flats = flats.where((flat) =>
+          flat.flatNumber.toLowerCase().contains(query) ||
+          flat.block.toLowerCase().contains(query) ||
+          (flat.ownerName?.toLowerCase().contains(query) ?? false)).toList();
+    }
+
+    _filteredFlats = flats;
+  }
+
+  /// Create a new flat
+  Future<bool> createFlat({
+    required String flatNumber,
+    required String block,
+    String? ownerName,
+    String? ownerPhone,
+  }) async {
+    try {
+      final flat = FlatModel(
+        id: '',
+        flatNumber: flatNumber,
+        block: block,
+        residentIds: [],
+        ownerName: ownerName,
+        ownerPhone: ownerPhone,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      await _flatService.createFlat(flat);
+      await loadAllFlats();
+      await loadDashboardStats();
+      await loadFlatStats();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Update flat details
+  Future<bool> updateFlat({
+    required String flatId,
+    String? flatNumber,
+    String? block,
+    String? ownerName,
+    String? ownerPhone,
+  }) async {
+    try {
+      final updates = <String, dynamic>{};
+      if (flatNumber != null) updates['flatNumber'] = flatNumber;
+      if (block != null) updates['block'] = block;
+      if (ownerName != null) updates['ownerName'] = ownerName;
+      if (ownerPhone != null) updates['ownerPhone'] = ownerPhone;
+
+      await _flatService.updateFlat(flatId, updates);
+      await loadAllFlats();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Delete flat
+  Future<bool> deleteFlat(String flatId) async {
+    try {
+      await _flatService.deleteFlat(flatId);
+      await loadAllFlats();
+      await loadDashboardStats();
+      await loadFlatStats();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Add resident to flat
+  Future<bool> addResidentToFlat(String flatId, String residentId) async {
+    try {
+      await _flatService.addResidentToFlat(flatId, residentId);
+      await loadAllFlats();
+      await loadFlatStats();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Remove resident from flat
+  Future<bool> removeResidentFromFlat(String flatId, String residentId) async {
+    try {
+      await _flatService.removeResidentFromFlat(flatId, residentId);
+      await loadAllFlats();
+      await loadFlatStats();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Get flat by ID
+  FlatModel? getFlatById(String id) {
+    try {
+      return _allFlats.firstWhere((flat) => flat.id == id);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ============================================================
+  // ACTIVITY LOGS
+  // ============================================================
+
+  /// Load activity logs
+  Future<void> loadActivityLogs({int limit = 100}) async {
+    try {
+      _activityLogs = await _activityLogService.getActivityLogs(limit: limit);
+      _applyLogFilters();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Failed to load activity logs: $e');
+      _errorMessage = e.toString();
+    }
+  }
+
+  /// Set log category filter
+  void setLogCategoryFilter(String category) {
+    _logCategoryFilter = category;
+    _applyLogFilters();
+    notifyListeners();
+  }
+
+  /// Set log date filter
+  void setLogDateFilter(String dateFilter) {
+    _logDateFilter = dateFilter;
+    _applyLogFilters();
+    notifyListeners();
+  }
+
+  /// Apply log filters
+  void _applyLogFilters() {
+    var logs = _activityLogs;
+
+    // Apply category filter
+    if (_logCategoryFilter != 'All') {
+      logs = logs.where((log) => log.category == _logCategoryFilter).toList();
+    }
+
+    // Apply date filter
+    final now = DateTime.now();
+    final startOfToday = DateTime(now.year, now.month, now.day);
+
+    switch (_logDateFilter) {
+      case 'Today':
+        logs = logs.where((log) => log.createdAt.isAfter(startOfToday)).toList();
+        break;
+      case 'This Week':
+        final startOfWeek = startOfToday.subtract(Duration(days: now.weekday - 1));
+        logs = logs.where((log) => log.createdAt.isAfter(startOfWeek)).toList();
+        break;
+      case 'This Month':
+        final startOfMonth = DateTime(now.year, now.month, 1);
+        logs = logs.where((log) => log.createdAt.isAfter(startOfMonth)).toList();
+        break;
+      // 'All Time' - no date filtering
+    }
+
+    _filteredLogs = logs;
+  }
+
+  /// Refresh activity logs
+  Future<void> refreshActivityLogs() async {
+    await loadActivityLogs();
+  }
+
+  /// Get activity count by category
+  Map<String, int> getActivityCountByCategory() {
+    final counts = <String, int>{
+      'Users': 0,
+      'Flats': 0,
+      'Visitors': 0,
+      'Settings': 0,
+    };
+
+    for (final log in _filteredLogs) {
+      counts[log.category] = (counts[log.category] ?? 0) + 1;
+    }
+
+    return counts;
   }
 
   // ============================================================
@@ -348,6 +675,17 @@ class AdminProvider extends ChangeNotifier {
     return counts;
   }
 
+  /// Search users for resident assignment
+  List<UserModel> searchUsersForAssignment(String query) {
+    if (query.isEmpty) return [];
+
+    final queryLower = query.toLowerCase();
+    return _allUsers.where((user) =>
+        user.role == 'resident' &&
+        (user.name.toLowerCase().contains(queryLower) ||
+            (user.phone?.contains(query) ?? false))).toList();
+  }
+
   // ============================================================
   // CLEANUP
   // ============================================================
@@ -360,13 +698,30 @@ class AdminProvider extends ChangeNotifier {
   void clearFilters() {
     _searchQuery = '';
     _roleFilter = 'All';
-    _applyFilters();
+    _applyUserFilters();
+    notifyListeners();
+  }
+
+  void clearFlatFilters() {
+    _flatSearchQuery = '';
+    _blockFilter = 'All';
+    _statusFilter = 'All';
+    _applyFlatFilters();
+    notifyListeners();
+  }
+
+  void clearLogFilters() {
+    _logCategoryFilter = 'All';
+    _logDateFilter = 'Today';
+    _applyLogFilters();
     notifyListeners();
   }
 
   @override
   void dispose() {
     _usersSubscription?.cancel();
+    _flatsSubscription?.cancel();
+    _logsSubscription?.cancel();
     super.dispose();
   }
 }

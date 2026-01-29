@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/flat_model.dart';
+import '../../models/user_model.dart';
+import '../../providers/admin_provider.dart';
 
 class AddEditFlatScreen extends StatefulWidget {
   final FlatModel? flat;
@@ -273,94 +276,101 @@ class _AddEditFlatScreenState extends State<AddEditFlatScreen> {
   Widget _buildResidentsSection() {
     final residents = widget.flat?.residentIds ?? [];
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withAlpha(25),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${residents.length} Resident${residents.length != 1 ? 's' : ''}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
-                ),
-              ),
-              TextButton.icon(
-                onPressed: _showAddResidentDialog,
-                icon: const Icon(Icons.person_add, size: 18),
-                label: const Text('Add'),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.adminColor,
-                ),
+    return Consumer<AdminProvider>(
+      builder: (context, adminProvider, child) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withAlpha(25),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
-          const Divider(),
-          if (residents.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Center(
-                child: Column(
-                  children: [
-                    Icon(Icons.people_outline, size: 48, color: Colors.grey.shade300),
-                    const SizedBox(height: 8),
-                    Text(
-                      'No residents assigned',
-                      style: TextStyle(color: Colors.grey.shade500),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${residents.length} Resident${residents.length != 1 ? 's' : ''}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
                     ),
-                  ],
-                ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _showAddResidentDialog(adminProvider),
+                    icon: const Icon(Icons.person_add, size: 18),
+                    label: const Text('Add'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.adminColor,
+                    ),
+                  ),
+                ],
               ),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: residents.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: AppColors.residentColor.withAlpha(25),
-                    child: Text(
-                      '${index + 1}',
-                      style: const TextStyle(
-                        color: AppColors.residentColor,
-                        fontWeight: FontWeight.bold,
+              const Divider(),
+              if (residents.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(Icons.people_outline, size: 48, color: Colors.grey.shade300),
+                        const SizedBox(height: 8),
+                        Text(
+                          'No residents assigned',
+                          style: TextStyle(color: Colors.grey.shade500),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: residents.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final residentId = residents[index];
+                    final user = adminProvider.getUserById(residentId);
+
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: AppColors.residentColor.withAlpha(25),
+                        child: Text(
+                          user?.name.isNotEmpty == true ? user!.name[0].toUpperCase() : '?',
+                          style: const TextStyle(
+                            color: AppColors.residentColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  title: Text('Resident ${index + 1}'),
-                  subtitle: Text(
-                    'ID: ${residents[index]}',
-                    style: TextStyle(
-                      color: Colors.grey.shade500,
-                      fontSize: 12,
-                    ),
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.remove_circle_outline, color: AppColors.error),
-                    onPressed: () => _removeResident(residents[index]),
-                  ),
-                );
-              },
-            ),
-        ],
-      ),
+                      title: Text(user?.name ?? 'Unknown User'),
+                      subtitle: Text(
+                        user?.phone ?? residentId,
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontSize: 12,
+                        ),
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.remove_circle_outline, color: AppColors.error),
+                        onPressed: () => _removeResident(adminProvider, residentId),
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -394,19 +404,45 @@ class _AddEditFlatScreenState extends State<AddEditFlatScreen> {
       _isLoading = true;
     });
 
-    // TODO: Save via provider in PR9
-    await Future.delayed(const Duration(seconds: 1));
+    final adminProvider = context.read<AdminProvider>();
+    bool success;
+
+    if (widget.isEditing) {
+      success = await adminProvider.updateFlat(
+        flatId: widget.flat!.id,
+        flatNumber: _flatNumberController.text.trim(),
+        block: _selectedBlock,
+        ownerName: _ownerNameController.text.trim().isEmpty ? null : _ownerNameController.text.trim(),
+        ownerPhone: _ownerPhoneController.text.trim().isEmpty ? null : _ownerPhoneController.text.trim(),
+      );
+    } else {
+      success = await adminProvider.createFlat(
+        flatNumber: _flatNumberController.text.trim(),
+        block: _selectedBlock,
+        ownerName: _ownerNameController.text.trim().isEmpty ? null : _ownerNameController.text.trim(),
+        ownerPhone: _ownerPhoneController.text.trim().isEmpty ? null : _ownerPhoneController.text.trim(),
+      );
+    }
 
     setState(() {
       _isLoading = false;
     });
 
-    if (mounted) {
-      Navigator.pop(context);
+    if (!mounted) return;
+
+    if (success) {
+      Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(widget.isEditing ? 'Flat updated successfully' : 'Flat created successfully'),
           backgroundColor: AppColors.success,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(adminProvider.errorMessage ?? 'Failed to save flat'),
+          backgroundColor: AppColors.error,
         ),
       );
     }
@@ -445,82 +481,209 @@ class _AddEditFlatScreenState extends State<AddEditFlatScreen> {
       _isLoading = true;
     });
 
-    // TODO: Delete via provider in PR9
-    await Future.delayed(const Duration(seconds: 1));
+    final adminProvider = context.read<AdminProvider>();
+    final success = await adminProvider.deleteFlat(widget.flat!.id);
 
-    if (mounted) {
-      Navigator.pop(context);
+    if (!mounted) return;
+
+    if (success) {
+      Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Flat deleted successfully'),
           backgroundColor: AppColors.success,
         ),
       );
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(adminProvider.errorMessage ?? 'Failed to delete flat'),
+          backgroundColor: AppColors.error,
+        ),
+      );
     }
   }
 
-  void _showAddResidentDialog() {
+  void _showAddResidentDialog(AdminProvider adminProvider) {
+    final searchController = TextEditingController();
+    List<UserModel> searchResults = [];
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Resident'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Search for a user to add as resident:'),
-            const SizedBox(height: 16),
-            TextField(
-              decoration: InputDecoration(
-                hintText: 'Search by name or phone',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Add Resident'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search by name or phone',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        searchResults = adminProvider.searchUsersForAssignment(value);
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  if (searchController.text.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        'Type to search for residents',
+                        style: TextStyle(color: Colors.grey.shade500),
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  else if (searchResults.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        'No residents found',
+                        style: TextStyle(color: Colors.grey.shade500),
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  else
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 200),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: searchResults.length,
+                        itemBuilder: (context, index) {
+                          final user = searchResults[index];
+                          final isAlreadyAdded = widget.flat?.residentIds.contains(user.uid) ?? false;
+
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: AppColors.residentColor.withAlpha(25),
+                              child: Text(
+                                user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+                                style: const TextStyle(color: AppColors.residentColor),
+                              ),
+                            ),
+                            title: Text(user.name),
+                            subtitle: Text(user.phone ?? ''),
+                            trailing: isAlreadyAdded
+                                ? const Icon(Icons.check, color: AppColors.success)
+                                : IconButton(
+                                    icon: const Icon(Icons.add_circle, color: AppColors.adminColor),
+                                    onPressed: () {
+                                      Navigator.pop(dialogContext);
+                                      _addResident(adminProvider, user.uid);
+                                    },
+                                  ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            // TODO: Show search results in PR9
-            Container(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                'Search results will appear here',
-                style: TextStyle(color: Colors.grey.shade500),
-                textAlign: TextAlign.center,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
 
-  void _removeResident(String residentId) {
+  Future<void> _addResident(AdminProvider adminProvider, String residentId) async {
+    if (widget.flat == null) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    final success = await adminProvider.addResidentToFlat(widget.flat!.id, residentId);
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (!mounted) return;
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Resident added successfully'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      // Refresh the flat data
+      adminProvider.loadAllFlats();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(adminProvider.errorMessage ?? 'Failed to add resident'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  void _removeResident(AdminProvider adminProvider, String residentId) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Remove Resident'),
         content: const Text('Are you sure you want to remove this resident from the flat?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Remove resident via provider in PR9
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Resident removal will be implemented in PR9'),
-                  backgroundColor: AppColors.info,
-                ),
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+
+              setState(() {
+                _isLoading = true;
+              });
+
+              final success = await adminProvider.removeResidentFromFlat(
+                widget.flat!.id,
+                residentId,
               );
+
+              setState(() {
+                _isLoading = false;
+              });
+
+              if (!mounted) return;
+
+              if (success) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Resident removed successfully'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+                adminProvider.loadAllFlats();
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(adminProvider.errorMessage ?? 'Failed to remove resident'),
+                    backgroundColor: AppColors.error,
+                  ),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/flat_model.dart';
+import '../../providers/admin_provider.dart';
 import 'add_edit_flat_screen.dart';
 
 class FlatManagementScreen extends StatefulWidget {
@@ -12,92 +14,6 @@ class FlatManagementScreen extends StatefulWidget {
 
 class _FlatManagementScreenState extends State<FlatManagementScreen> {
   final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
-  String _selectedBlock = 'All';
-  String _selectedStatus = 'All'; // All, Occupied, Vacant
-
-  // Mock data - will be replaced with provider in PR9
-  final List<FlatModel> _mockFlats = [
-    FlatModel(
-      id: '1',
-      flatNumber: '101',
-      block: 'A',
-      residentIds: ['user1', 'user2'],
-      ownerName: 'John Doe',
-      ownerPhone: '9876543210',
-      createdAt: DateTime.now().subtract(const Duration(days: 30)),
-      updatedAt: DateTime.now(),
-    ),
-    FlatModel(
-      id: '2',
-      flatNumber: '102',
-      block: 'A',
-      residentIds: [],
-      ownerName: null,
-      ownerPhone: null,
-      createdAt: DateTime.now().subtract(const Duration(days: 30)),
-      updatedAt: DateTime.now(),
-    ),
-    FlatModel(
-      id: '3',
-      flatNumber: '201',
-      block: 'A',
-      residentIds: ['user3'],
-      ownerName: 'Jane Smith',
-      ownerPhone: '9876543211',
-      createdAt: DateTime.now().subtract(const Duration(days: 20)),
-      updatedAt: DateTime.now(),
-    ),
-    FlatModel(
-      id: '4',
-      flatNumber: '101',
-      block: 'B',
-      residentIds: ['user4'],
-      ownerName: 'Bob Wilson',
-      ownerPhone: '9876543212',
-      createdAt: DateTime.now().subtract(const Duration(days: 15)),
-      updatedAt: DateTime.now(),
-    ),
-    FlatModel(
-      id: '5',
-      flatNumber: '102',
-      block: 'B',
-      residentIds: [],
-      ownerName: null,
-      ownerPhone: null,
-      createdAt: DateTime.now().subtract(const Duration(days: 15)),
-      updatedAt: DateTime.now(),
-    ),
-  ];
-
-  List<String> get _blocks => ['All', 'A', 'B', 'C', 'D'];
-
-  List<FlatModel> get _filteredFlats {
-    var flats = _mockFlats;
-
-    // Filter by block
-    if (_selectedBlock != 'All') {
-      flats = flats.where((flat) => flat.block == _selectedBlock).toList();
-    }
-
-    // Filter by status
-    if (_selectedStatus == 'Occupied') {
-      flats = flats.where((flat) => flat.residentIds.isNotEmpty).toList();
-    } else if (_selectedStatus == 'Vacant') {
-      flats = flats.where((flat) => flat.residentIds.isEmpty).toList();
-    }
-
-    // Filter by search
-    if (_searchQuery.isNotEmpty) {
-      final query = _searchQuery.toLowerCase();
-      flats = flats.where((flat) =>
-          flat.flatNumber.toLowerCase().contains(query) ||
-          flat.block.toLowerCase().contains(query) ||
-          (flat.ownerName?.toLowerCase().contains(query) ?? false)).toList();
-    }
-
-    return flats;
-  }
 
   @override
   void dispose() {
@@ -107,23 +23,29 @@ class _FlatManagementScreenState extends State<FlatManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Search and Filter Section
-        _buildSearchAndFilter(),
+    return Consumer<AdminProvider>(
+      builder: (context, adminProvider, child) {
+        return Column(
+          children: [
+            // Search and Filter Section
+            _buildSearchAndFilter(adminProvider),
 
-        // Stats Summary
-        _buildStatsSummary(),
+            // Stats Summary
+            _buildStatsSummary(adminProvider),
 
-        // Flat List
-        Expanded(
-          child: _buildFlatList(),
-        ),
-      ],
+            // Flat List
+            Expanded(
+              child: adminProvider.isLoading && adminProvider.allFlats.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : _buildFlatList(adminProvider),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildSearchAndFilter() {
+  Widget _buildSearchAndFilter(AdminProvider adminProvider) {
     return Container(
       padding: const EdgeInsets.all(16),
       color: Colors.grey.shade50,
@@ -135,14 +57,12 @@ class _FlatManagementScreenState extends State<FlatManagementScreen> {
             decoration: InputDecoration(
               hintText: 'Search by flat number, block, or owner...',
               prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchQuery.isNotEmpty
+              suffixIcon: adminProvider.flatSearchQuery.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear),
                       onPressed: () {
                         _searchController.clear();
-                        setState(() {
-                          _searchQuery = '';
-                        });
+                        adminProvider.setFlatSearchQuery('');
                       },
                     )
                   : null,
@@ -155,9 +75,7 @@ class _FlatManagementScreenState extends State<FlatManagementScreen> {
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
             onChanged: (value) {
-              setState(() {
-                _searchQuery = value;
-              });
+              adminProvider.setFlatSearchQuery(value);
             },
           ),
           const SizedBox(height: 12),
@@ -169,12 +87,12 @@ class _FlatManagementScreenState extends State<FlatManagementScreen> {
               Expanded(
                 child: _buildDropdownFilter(
                   label: 'Block',
-                  value: _selectedBlock,
-                  items: _blocks,
+                  value: adminProvider.blockFilter,
+                  items: adminProvider.availableBlocks.isEmpty
+                      ? ['All', 'A', 'B', 'C', 'D']
+                      : adminProvider.availableBlocks,
                   onChanged: (value) {
-                    setState(() {
-                      _selectedBlock = value ?? 'All';
-                    });
+                    adminProvider.setBlockFilter(value ?? 'All');
                   },
                 ),
               ),
@@ -184,12 +102,10 @@ class _FlatManagementScreenState extends State<FlatManagementScreen> {
               Expanded(
                 child: _buildDropdownFilter(
                   label: 'Status',
-                  value: _selectedStatus,
-                  items: ['All', 'Occupied', 'Vacant'],
+                  value: adminProvider.statusFilter,
+                  items: const ['All', 'Occupied', 'Vacant'],
                   onChanged: (value) {
-                    setState(() {
-                      _selectedStatus = value ?? 'All';
-                    });
+                    adminProvider.setStatusFilter(value ?? 'All');
                   },
                 ),
               ),
@@ -215,7 +131,7 @@ class _FlatManagementScreenState extends State<FlatManagementScreen> {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: value,
+          value: items.contains(value) ? value : items.first,
           isExpanded: true,
           hint: Text(label),
           items: items.map((item) {
@@ -230,11 +146,11 @@ class _FlatManagementScreenState extends State<FlatManagementScreen> {
     );
   }
 
-  Widget _buildStatsSummary() {
-    final totalFlats = _mockFlats.length;
-    final occupiedFlats = _mockFlats.where((f) => f.residentIds.isNotEmpty).length;
-    final vacantFlats = totalFlats - occupiedFlats;
-    final filteredCount = _filteredFlats.length;
+  Widget _buildStatsSummary(AdminProvider adminProvider) {
+    final totalFlats = adminProvider.allFlats.length;
+    final occupiedFlats = adminProvider.occupiedFlatsCount;
+    final vacantFlats = adminProvider.vacantFlatsCount;
+    final filteredCount = adminProvider.filteredFlats.length;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -283,8 +199,8 @@ class _FlatManagementScreenState extends State<FlatManagementScreen> {
     );
   }
 
-  Widget _buildFlatList() {
-    final flats = _filteredFlats;
+  Widget _buildFlatList(AdminProvider adminProvider) {
+    final flats = adminProvider.filteredFlats;
 
     if (flats.isEmpty) {
       return Center(
@@ -308,27 +224,33 @@ class _FlatManagementScreenState extends State<FlatManagementScreen> {
                 color: Colors.grey.shade400,
               ),
             ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _navigateToAddFlat,
+              icon: const Icon(Icons.add),
+              label: const Text('Add First Flat'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.adminColor,
+              ),
+            ),
           ],
         ),
       );
     }
 
     return RefreshIndicator(
-      onRefresh: () async {
-        // TODO: Refresh from provider in PR9
-        await Future.delayed(const Duration(seconds: 1));
-      },
+      onRefresh: () => adminProvider.loadAllFlats(),
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         itemCount: flats.length,
         itemBuilder: (context, index) {
-          return _buildFlatCard(flats[index]);
+          return _buildFlatCard(flats[index], adminProvider);
         },
       ),
     );
   }
 
-  Widget _buildFlatCard(FlatModel flat) {
+  Widget _buildFlatCard(FlatModel flat, AdminProvider adminProvider) {
     final isOccupied = flat.residentIds.isNotEmpty;
     final statusColor = isOccupied ? AppColors.success : AppColors.warning;
 
@@ -440,21 +362,29 @@ class _FlatManagementScreenState extends State<FlatManagementScreen> {
     );
   }
 
-  void _navigateToAddFlat() {
-    Navigator.push(
+  void _navigateToAddFlat() async {
+    final result = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => const AddEditFlatScreen(),
       ),
     );
+
+    if (result == true && mounted) {
+      context.read<AdminProvider>().loadAllFlats();
+    }
   }
 
-  void _navigateToEditFlat(FlatModel flat) {
-    Navigator.push(
+  void _navigateToEditFlat(FlatModel flat) async {
+    final result = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => AddEditFlatScreen(flat: flat),
       ),
     );
+
+    if (result == true && mounted) {
+      context.read<AdminProvider>().loadAllFlats();
+    }
   }
 }

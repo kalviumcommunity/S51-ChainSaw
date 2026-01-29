@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../services/activity_log_service.dart';
+import '../../providers/admin_provider.dart';
 
 class ActivityLogScreen extends StatefulWidget {
   const ActivityLogScreen({super.key});
@@ -11,123 +13,31 @@ class ActivityLogScreen extends StatefulWidget {
 }
 
 class _ActivityLogScreenState extends State<ActivityLogScreen> {
-  String _selectedFilter = 'All';
-  String _selectedDateRange = 'Today';
-
-  // Mock data - will be replaced with provider in PR9
-  final List<ActivityLog> _mockLogs = [
-    ActivityLog(
-      id: '1',
-      type: ActivityType.userCreated,
-      adminId: 'admin1',
-      adminName: 'Admin User',
-      targetId: 'user1',
-      targetName: 'John Doe',
-      description: 'Created new resident: John Doe',
-      createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
-    ),
-    ActivityLog(
-      id: '2',
-      type: ActivityType.roleChanged,
-      adminId: 'admin1',
-      adminName: 'Admin User',
-      targetId: 'user2',
-      targetName: 'Jane Smith',
-      description: 'Changed role of Jane Smith from resident to guard',
-      metadata: {'oldRole': 'resident', 'newRole': 'guard'},
-      createdAt: DateTime.now().subtract(const Duration(minutes: 30)),
-    ),
-    ActivityLog(
-      id: '3',
-      type: ActivityType.flatCreated,
-      adminId: 'admin1',
-      adminName: 'Admin User',
-      targetId: 'flat1',
-      targetName: 'A-101',
-      description: 'Created flat: A-101',
-      createdAt: DateTime.now().subtract(const Duration(hours: 1)),
-    ),
-    ActivityLog(
-      id: '4',
-      type: ActivityType.residentAssigned,
-      adminId: 'admin1',
-      adminName: 'Admin User',
-      targetId: 'user3',
-      targetName: 'Bob Wilson',
-      description: 'Assigned Bob Wilson to flat A-102',
-      metadata: {'flatNumber': 'A-102'},
-      createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-    ),
-    ActivityLog(
-      id: '5',
-      type: ActivityType.userDeleted,
-      adminId: 'admin1',
-      adminName: 'Admin User',
-      targetId: 'user4',
-      targetName: 'Test User',
-      description: 'Deleted user: Test User',
-      createdAt: DateTime.now().subtract(const Duration(hours: 3)),
-    ),
-    ActivityLog(
-      id: '6',
-      type: ActivityType.flatUpdated,
-      adminId: 'admin1',
-      adminName: 'Admin User',
-      targetId: 'flat2',
-      targetName: 'B-201',
-      description: 'Updated flat: B-201',
-      createdAt: DateTime.now().subtract(const Duration(days: 1)),
-    ),
-  ];
-
-  List<ActivityLog> get _filteredLogs {
-    var logs = _mockLogs;
-
-    // Filter by type category
-    if (_selectedFilter != 'All') {
-      logs = logs.where((log) => log.category == _selectedFilter).toList();
-    }
-
-    // Filter by date range
-    final now = DateTime.now();
-    final startOfToday = DateTime(now.year, now.month, now.day);
-
-    switch (_selectedDateRange) {
-      case 'Today':
-        logs = logs.where((log) => log.createdAt.isAfter(startOfToday)).toList();
-        break;
-      case 'This Week':
-        final startOfWeek = startOfToday.subtract(Duration(days: now.weekday - 1));
-        logs = logs.where((log) => log.createdAt.isAfter(startOfWeek)).toList();
-        break;
-      case 'This Month':
-        final startOfMonth = DateTime(now.year, now.month, 1);
-        logs = logs.where((log) => log.createdAt.isAfter(startOfMonth)).toList();
-        break;
-    }
-
-    return logs;
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Filter Section
-        _buildFilterSection(),
+    return Consumer<AdminProvider>(
+      builder: (context, adminProvider, child) {
+        return Column(
+          children: [
+            // Filter Section
+            _buildFilterSection(adminProvider),
 
-        // Stats Summary
-        _buildStatsSummary(),
+            // Stats Summary
+            _buildStatsSummary(adminProvider),
 
-        // Activity List
-        Expanded(
-          child: _buildActivityList(),
-        ),
-      ],
+            // Activity List
+            Expanded(
+              child: adminProvider.isLoading && adminProvider.activityLogs.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : _buildActivityList(adminProvider),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildFilterSection() {
+  Widget _buildFilterSection(AdminProvider adminProvider) {
     return Container(
       padding: const EdgeInsets.all(16),
       color: Colors.grey.shade50,
@@ -138,15 +48,15 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildFilterChip('All'),
+                _buildFilterChip('All', adminProvider),
                 const SizedBox(width: 8),
-                _buildFilterChip('Users'),
+                _buildFilterChip('Users', adminProvider),
                 const SizedBox(width: 8),
-                _buildFilterChip('Flats'),
+                _buildFilterChip('Flats', adminProvider),
                 const SizedBox(width: 8),
-                _buildFilterChip('Visitors'),
+                _buildFilterChip('Visitors', adminProvider),
                 const SizedBox(width: 8),
-                _buildFilterChip('Settings'),
+                _buildFilterChip('Settings', adminProvider),
               ],
             ),
           ),
@@ -157,13 +67,13 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
             children: [
               const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
               const SizedBox(width: 8),
-              _buildDateRangeChip('Today'),
+              _buildDateRangeChip('Today', adminProvider),
               const SizedBox(width: 8),
-              _buildDateRangeChip('This Week'),
+              _buildDateRangeChip('This Week', adminProvider),
               const SizedBox(width: 8),
-              _buildDateRangeChip('This Month'),
+              _buildDateRangeChip('This Month', adminProvider),
               const SizedBox(width: 8),
-              _buildDateRangeChip('All Time'),
+              _buildDateRangeChip('All Time', adminProvider),
             ],
           ),
         ],
@@ -171,16 +81,14 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
     );
   }
 
-  Widget _buildFilterChip(String label) {
-    final isSelected = _selectedFilter == label;
+  Widget _buildFilterChip(String label, AdminProvider adminProvider) {
+    final isSelected = adminProvider.logCategoryFilter == label;
 
     return FilterChip(
       label: Text(label),
       selected: isSelected,
       onSelected: (selected) {
-        setState(() {
-          _selectedFilter = label;
-        });
+        adminProvider.setLogCategoryFilter(label);
       },
       selectedColor: AppColors.adminColor.withAlpha(50),
       checkmarkColor: AppColors.adminColor,
@@ -191,14 +99,12 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
     );
   }
 
-  Widget _buildDateRangeChip(String label) {
-    final isSelected = _selectedDateRange == label;
+  Widget _buildDateRangeChip(String label, AdminProvider adminProvider) {
+    final isSelected = adminProvider.logDateFilter == label;
 
     return GestureDetector(
       onTap: () {
-        setState(() {
-          _selectedDateRange = label;
-        });
+        adminProvider.setLogDateFilter(label);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -221,11 +127,9 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
     );
   }
 
-  Widget _buildStatsSummary() {
-    final logs = _filteredLogs;
-    final userActions = logs.where((l) => l.category == 'Users').length;
-    final flatActions = logs.where((l) => l.category == 'Flats').length;
-    final visitorActions = logs.where((l) => l.category == 'Visitors').length;
+  Widget _buildStatsSummary(AdminProvider adminProvider) {
+    final logs = adminProvider.filteredLogs;
+    final categoryCounts = adminProvider.getActivityCountByCategory();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -234,23 +138,15 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
         children: [
           _buildStatBadge('Total', logs.length, AppColors.primary),
           const SizedBox(width: 8),
-          _buildStatBadge('Users', userActions, AppColors.info),
+          _buildStatBadge('Users', categoryCounts['Users'] ?? 0, AppColors.info),
           const SizedBox(width: 8),
-          _buildStatBadge('Flats', flatActions, AppColors.secondary),
+          _buildStatBadge('Flats', categoryCounts['Flats'] ?? 0, AppColors.secondary),
           const SizedBox(width: 8),
-          _buildStatBadge('Visitors', visitorActions, AppColors.success),
+          _buildStatBadge('Visitors', categoryCounts['Visitors'] ?? 0, AppColors.success),
           const Spacer(),
           IconButton(
             icon: const Icon(Icons.refresh, color: AppColors.adminColor),
-            onPressed: () {
-              // TODO: Refresh from provider in PR9
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Refresh will be implemented in PR9'),
-                  backgroundColor: AppColors.info,
-                ),
-              );
-            },
+            onPressed: () => adminProvider.refreshActivityLogs(),
             tooltip: 'Refresh',
           ),
         ],
@@ -276,8 +172,8 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
     );
   }
 
-  Widget _buildActivityList() {
-    final logs = _filteredLogs;
+  Widget _buildActivityList(AdminProvider adminProvider) {
+    final logs = adminProvider.filteredLogs;
 
     if (logs.isEmpty) {
       return Center(
@@ -310,10 +206,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
     final groupedLogs = _groupLogsByDate(logs);
 
     return RefreshIndicator(
-      onRefresh: () async {
-        // TODO: Refresh from provider in PR9
-        await Future.delayed(const Duration(seconds: 1));
-      },
+      onRefresh: () => adminProvider.refreshActivityLogs(),
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         itemCount: groupedLogs.length,
