@@ -6,6 +6,11 @@ import '../../core/constants/app_constants.dart';
 import '../../providers/admin_provider.dart';
 import 'user_management_screen.dart';
 
+import 'flat_management_screen.dart';
+import 'activity_log_screen.dart';
+
+
+
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
 
@@ -698,58 +703,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 
   Widget _buildFlatsTab() {
-    // Placeholder - will be implemented in PR7
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.apartment, size: 64, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          Text(
-            'Flat Management',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey.shade500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Coming in PR7',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade400,
-            ),
-          ),
-        ],
-      ),
-    );
+    return const FlatManagementScreen();
   }
 
   Widget _buildActivityTab() {
-    // Placeholder - will be implemented in PR7
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.history, size: 64, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          Text(
-            'Activity Logs',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey.shade500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Coming in PR7',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade400,
-            ),
-          ),
-        ],
-      ),
-    );
+    return const ActivityLogScreen();
   }
 }
