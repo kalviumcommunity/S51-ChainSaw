@@ -303,4 +303,165 @@ class FlatService {
       throw Exception('Failed to get flats count: $e');
     }
   }
+
+  // ============================================================
+  // ADMIN METHODS
+  // ============================================================
+
+  /// Search flats by flat number (partial match)
+  Future<List<FlatModel>> searchFlats(String query) async {
+    try {
+      if (query.isEmpty) {
+        return getAllFlats();
+      }
+
+      final snapshot = await _flatsRef.get();
+      final queryLower = query.toLowerCase();
+
+      return snapshot.docs
+          .map((doc) => FlatModel.fromMap(doc.data(), doc.id))
+          .where((flat) =>
+              flat.flatNumber.toLowerCase().contains(queryLower) ||
+              flat.block.toLowerCase().contains(queryLower))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to search flats: $e');
+    }
+  }
+
+  /// Get occupied flats (flats with at least one resident)
+  Future<List<FlatModel>> getOccupiedFlats() async {
+    try {
+      final snapshot = await _flatsRef.get();
+
+      return snapshot.docs
+          .map((doc) => FlatModel.fromMap(doc.data(), doc.id))
+          .where((flat) => flat.residentIds.isNotEmpty)
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to get occupied flats: $e');
+    }
+  }
+
+  /// Get vacant flats (flats with no residents)
+  Future<List<FlatModel>> getVacantFlats() async {
+    try {
+      final snapshot = await _flatsRef.get();
+
+      return snapshot.docs
+          .map((doc) => FlatModel.fromMap(doc.data(), doc.id))
+          .where((flat) => flat.residentIds.isEmpty)
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to get vacant flats: $e');
+    }
+  }
+
+  /// Get flats by floor (extracts floor from flat number, e.g., "A-101" -> floor 1)
+  Future<List<FlatModel>> getFlatsByFloor(int floor) async {
+    try {
+      final snapshot = await _flatsRef.get();
+
+      return snapshot.docs
+          .map((doc) => FlatModel.fromMap(doc.data(), doc.id))
+          .where((flat) => _extractFloor(flat.flatNumber) == floor)
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to get flats by floor: $e');
+    }
+  }
+
+  /// Extract floor from flat number (e.g., "A-101" -> 1, "B-205" -> 2)
+  int _extractFloor(String flatNumber) {
+    final parts = flatNumber.split('-');
+    if (parts.length > 1) {
+      final numPart = parts[1];
+      if (numPart.isNotEmpty) {
+        // First digit is usually the floor
+        return int.tryParse(numPart[0]) ?? 0;
+      }
+    }
+    return 0;
+  }
+
+  /// Get all floors in the building
+  Future<List<int>> getAllFloors() async {
+    try {
+      final snapshot = await _flatsRef.get();
+      final floors = snapshot.docs
+          .map((doc) => FlatModel.fromMap(doc.data(), doc.id))
+          .map((flat) => _extractFloor(flat.flatNumber))
+          .where((floor) => floor > 0)
+          .toSet()
+          .toList();
+      floors.sort();
+      return floors;
+    } catch (e) {
+      throw Exception('Failed to get floors: $e');
+    }
+  }
+
+  /// Get flat statistics summary
+  Future<Map<String, dynamic>> getFlatStatistics() async {
+    try {
+      final snapshot = await _flatsRef.get();
+      final flats = snapshot.docs
+          .map((doc) => FlatModel.fromMap(doc.data(), doc.id))
+          .toList();
+
+      int occupied = 0;
+      int vacant = 0;
+      int totalResidents = 0;
+      final blockCounts = <String, int>{};
+
+      for (final flat in flats) {
+        if (flat.residentIds.isNotEmpty) {
+          occupied++;
+          totalResidents += flat.residentIds.length;
+        } else {
+          vacant++;
+        }
+
+        blockCounts[flat.block] = (blockCounts[flat.block] ?? 0) + 1;
+      }
+
+      return {
+        'totalFlats': flats.length,
+        'occupied': occupied,
+        'vacant': vacant,
+        'totalResidents': totalResidents,
+        'occupancyRate': flats.isNotEmpty ? (occupied / flats.length * 100).toStringAsFixed(1) : '0',
+        'blockCounts': blockCounts,
+      };
+    } catch (e) {
+      throw Exception('Failed to get flat statistics: $e');
+    }
+  }
+
+  /// Bulk create flats (for initial setup)
+  Future<void> bulkCreateFlats(List<FlatModel> flats) async {
+    try {
+      final batch = _firestore.batch();
+
+      for (final flat in flats) {
+        final docRef = _flatsRef.doc();
+        batch.set(docRef, flat.toMap());
+      }
+
+      await batch.commit();
+    } catch (e) {
+      throw Exception('Failed to bulk create flats: $e');
+    }
+  }
+
+  /// Update flat with full model
+  Future<void> updateFlatModel(String flatId, FlatModel flat) async {
+    try {
+      final data = flat.toMap();
+      data[AppConstants.fieldUpdatedAt] = FieldValue.serverTimestamp();
+      await _flatsRef.doc(flatId).update(data);
+    } catch (e) {
+      throw Exception('Failed to update flat: $e');
+    }
+  }
 }
