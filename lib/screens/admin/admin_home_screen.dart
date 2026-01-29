@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/routes/app_routes.dart';
+import '../../core/constants/app_constants.dart';
+import '../../providers/admin_provider.dart';
+import 'user_management_screen.dart';
+import 'flat_management_screen.dart';
+import 'activity_log_screen.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
@@ -15,7 +21,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   @override
   void initState() {
     super.initState();
-    // TODO: Initialize admin provider
+    // Initialize admin provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AdminProvider>().initializeWithStream();
+    });
   }
 
   @override
@@ -25,6 +34,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         title: const Text('Admin Dashboard'),
         backgroundColor: AppColors.adminColor,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              context.read<AdminProvider>().refreshDashboard();
+            },
+            tooltip: 'Refresh',
+          ),
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () {
@@ -72,7 +88,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       case 0:
         return _buildDashboardTab();
       case 1:
-        return _buildUsersTab();
+        return const UserManagementScreen();
       case 2:
         return _buildFlatsTab();
       case 3:
@@ -83,74 +99,79 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 
   Widget _buildDashboardTab() {
-    return RefreshIndicator(
-      onRefresh: () async {
-        // TODO: Refresh stats from provider
-        await Future.delayed(const Duration(seconds: 1));
+    return Consumer<AdminProvider>(
+      builder: (context, adminProvider, child) {
+        if (adminProvider.isLoading && adminProvider.dashboardStats == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        return RefreshIndicator(
+          onRefresh: () => adminProvider.refreshDashboard(),
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Welcome Header
+                _buildWelcomeHeader(),
+                const SizedBox(height: 24),
+
+                // Overview Stats
+                const Text(
+                  'Overview',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildOverviewStats(adminProvider),
+                const SizedBox(height: 24),
+
+                // User Stats
+                const Text(
+                  'Users by Role',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildUserStats(adminProvider),
+                const SizedBox(height: 24),
+
+                // Visitor Stats
+                const Text(
+                  'Visitor Status',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildVisitorStats(adminProvider),
+                const SizedBox(height: 24),
+
+                // Quick Actions
+                const Text(
+                  'Quick Actions',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildQuickActions(),
+                const SizedBox(height: 24),
+
+                // Recent Activity
+                _buildRecentActivitySection(adminProvider),
+              ],
+            ),
+          ),
+        );
       },
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Welcome Header
-            _buildWelcomeHeader(),
-            const SizedBox(height: 24),
-
-            // Overview Stats
-            const Text(
-              'Overview',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildOverviewStats(),
-            const SizedBox(height: 24),
-
-            // User Stats
-            const Text(
-              'Users by Role',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildUserStats(),
-            const SizedBox(height: 24),
-
-            // Visitor Stats
-            const Text(
-              'Visitor Status',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildVisitorStats(),
-            const SizedBox(height: 24),
-
-            // Quick Actions
-            const Text(
-              'Quick Actions',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildQuickActions(),
-            const SizedBox(height: 24),
-
-            // Recent Activity
-            _buildRecentActivitySection(),
-          ],
-        ),
-      ),
     );
   }
 
@@ -235,14 +256,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
-  Widget _buildOverviewStats() {
-    // TODO: Replace with real data from provider
+  Widget _buildOverviewStats(AdminProvider adminProvider) {
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
             'Total Users',
-            '24',
+            adminProvider.totalUsers.toString(),
             Icons.people,
             AppColors.primary,
           ),
@@ -251,7 +271,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         Expanded(
           child: _buildStatCard(
             'Total Flats',
-            '50',
+            adminProvider.totalFlats.toString(),
             Icons.apartment,
             AppColors.secondary,
           ),
@@ -260,7 +280,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         Expanded(
           child: _buildStatCard(
             'Today',
-            '12',
+            adminProvider.todayVisitors.toString(),
             Icons.today,
             AppColors.info,
           ),
@@ -308,14 +328,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
-  Widget _buildUserStats() {
-    // TODO: Replace with real data from provider
+  Widget _buildUserStats(AdminProvider adminProvider) {
     return Row(
       children: [
         Expanded(
           child: _buildUserRoleCard(
             'Guards',
-            '5',
+            adminProvider.totalGuards.toString(),
             Icons.security,
             AppColors.guardColor,
           ),
@@ -324,7 +343,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         Expanded(
           child: _buildUserRoleCard(
             'Residents',
-            '18',
+            adminProvider.totalResidents.toString(),
             Icons.home,
             AppColors.residentColor,
           ),
@@ -333,7 +352,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         Expanded(
           child: _buildUserRoleCard(
             'Admins',
-            '1',
+            adminProvider.totalAdmins.toString(),
             Icons.admin_panel_settings,
             AppColors.adminColor,
           ),
@@ -378,8 +397,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
-  Widget _buildVisitorStats() {
-    // TODO: Replace with real data from provider
+  Widget _buildVisitorStats(AdminProvider adminProvider) {
+    final stats = adminProvider.dashboardStats;
+    final visitorsByStatus = stats?.visitorsByStatus ?? {};
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -395,13 +416,29 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       ),
       child: Column(
         children: [
-          _buildVisitorStatRow('Pending', 3, AppColors.pending),
+          _buildVisitorStatRow(
+            'Pending',
+            visitorsByStatus[AppConstants.statusPending] ?? 0,
+            AppColors.pending,
+          ),
           const Divider(height: 20),
-          _buildVisitorStatRow('Inside', 5, AppColors.approved),
+          _buildVisitorStatRow(
+            'Inside',
+            visitorsByStatus[AppConstants.statusApproved] ?? 0,
+            AppColors.approved,
+          ),
           const Divider(height: 20),
-          _buildVisitorStatRow('Checked Out Today', 8, AppColors.checkedOut),
+          _buildVisitorStatRow(
+            'Checked Out',
+            visitorsByStatus[AppConstants.statusCheckedOut] ?? 0,
+            AppColors.checkedOut,
+          ),
           const Divider(height: 20),
-          _buildVisitorStatRow('Denied Today', 1, AppColors.denied),
+          _buildVisitorStatRow(
+            'Denied',
+            visitorsByStatus[AppConstants.statusDenied] ?? 0,
+            AppColors.denied,
+          ),
         ],
       ),
     );
@@ -455,7 +492,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             Icons.person_add,
             AppColors.primary,
             () {
-              // TODO: Navigate to add user
+              setState(() {
+                _selectedIndex = 1;
+              });
             },
           ),
         ),
@@ -466,18 +505,22 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             Icons.add_home,
             AppColors.secondary,
             () {
-              // TODO: Navigate to add flat
+              setState(() {
+                _selectedIndex = 2;
+              });
             },
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: _buildActionCard(
-            'Reports',
+            'Activity',
             Icons.analytics,
             AppColors.info,
             () {
-              // TODO: Navigate to reports
+              setState(() {
+                _selectedIndex = 3;
+              });
             },
           ),
         ),
@@ -515,7 +558,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
-  Widget _buildRecentActivitySection() {
+  Widget _buildRecentActivitySection(AdminProvider adminProvider) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -523,7 +566,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              'Recent Activity',
+              'Recent Users',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -532,7 +575,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             TextButton(
               onPressed: () {
                 setState(() {
-                  _selectedIndex = 3;
+                  _selectedIndex = 1;
                 });
               },
               child: const Text('View All'),
@@ -540,18 +583,36 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        _buildRecentActivityList(),
+        _buildRecentUsersList(adminProvider),
       ],
     );
   }
 
-  Widget _buildRecentActivityList() {
-    // TODO: Replace with real data from provider
-    final activities = [
-      {'action': 'New user registered', 'user': 'John Doe', 'time': '2 min ago', 'icon': Icons.person_add},
-      {'action': 'Visitor approved', 'user': 'Flat A-101', 'time': '5 min ago', 'icon': Icons.check_circle},
-      {'action': 'Guard logged in', 'user': 'Security 1', 'time': '10 min ago', 'icon': Icons.login},
-    ];
+  Widget _buildRecentUsersList(AdminProvider adminProvider) {
+    final recentUsers = adminProvider.allUsers.take(5).toList();
+
+    if (recentUsers.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withAlpha(25),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Text(
+            'No users yet',
+            style: TextStyle(color: Colors.grey.shade500),
+          ),
+        ),
+      );
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -568,38 +629,50 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       child: ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        itemCount: activities.length,
+        itemCount: recentUsers.length,
         separatorBuilder: (_, __) => const Divider(height: 1),
         itemBuilder: (context, index) {
-          final activity = activities[index];
+          final user = recentUsers[index];
+          final roleColor = _getRoleColor(user.role);
+
           return ListTile(
             leading: CircleAvatar(
-              backgroundColor: AppColors.adminColor.withAlpha(25),
-              child: Icon(
-                activity['icon'] as IconData,
-                color: AppColors.adminColor,
-                size: 20,
+              backgroundColor: roleColor.withAlpha(25),
+              child: Text(
+                user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+                style: TextStyle(
+                  color: roleColor,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             title: Text(
-              activity['action'] as String,
+              user.name,
               style: const TextStyle(
                 fontWeight: FontWeight.w500,
                 fontSize: 14,
               ),
             ),
             subtitle: Text(
-              activity['user'] as String,
+              user.phone ?? user.email ?? 'No contact',
               style: TextStyle(
                 color: Colors.grey.shade600,
                 fontSize: 12,
               ),
             ),
-            trailing: Text(
-              activity['time'] as String,
-              style: TextStyle(
-                color: Colors.grey.shade500,
-                fontSize: 11,
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: roleColor.withAlpha(25),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                _capitalizeFirst(user.role),
+                style: TextStyle(
+                  color: roleColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           );
@@ -608,66 +681,29 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     );
   }
 
-  Widget _buildUsersTab() {
-    // Placeholder - will be replaced with UserManagementScreen content
-    return const Center(
-      child: Text('Users Tab - Navigate to User Management'),
-    );
+  Color _getRoleColor(String role) {
+    switch (role) {
+      case AppConstants.roleGuard:
+        return AppColors.guardColor;
+      case AppConstants.roleResident:
+        return AppColors.residentColor;
+      case AppConstants.roleAdmin:
+        return AppColors.adminColor;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _capitalizeFirst(String text) {
+    if (text.isEmpty) return text;
+    return text[0].toUpperCase() + text.substring(1);
   }
 
   Widget _buildFlatsTab() {
-    // Placeholder - will be implemented in PR7
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.apartment, size: 64, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          Text(
-            'Flat Management',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey.shade500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Coming in PR7',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade400,
-            ),
-          ),
-        ],
-      ),
-    );
+    return const FlatManagementScreen();
   }
 
   Widget _buildActivityTab() {
-    // Placeholder - will be implemented in PR7
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.history, size: 64, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          Text(
-            'Activity Logs',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey.shade500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Coming in PR7',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade400,
-            ),
-          ),
-        ],
-      ),
-    );
+    return const ActivityLogScreen();
   }
 }

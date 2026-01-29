@@ -9,6 +9,9 @@ import '../../screens/guard/guard_home_screen.dart';
 import '../../screens/guard/add_visitor_screen.dart';
 import '../../screens/resident/resident_home_screen.dart';
 import '../../screens/profile/profile_screen.dart';
+import '../../screens/admin/admin_home_screen.dart';
+import '../../screens/admin/add_edit_flat_screen.dart';
+import '../../models/flat_model.dart';
 
 class AppRoutes {
   AppRoutes._();
@@ -23,6 +26,8 @@ class AppRoutes {
   static const String addVisitor = '/add-visitor';
   static const String residentHome = '/resident-home';
   static const String adminHome = '/admin-home';
+  static const String addFlat = '/add-flat';
+  static const String editFlat = '/edit-flat';
   static const String profile = '/profile';
 
   // Route Generator
@@ -61,14 +66,16 @@ class AppRoutes {
       case residentHome:
         return MaterialPageRoute(builder: (_) => const ResidentHomeScreen());
 
-      // Placeholder routes
       case adminHome:
+        return MaterialPageRoute(builder: (_) => const AdminHomeScreen());
+
+      case addFlat:
+        return MaterialPageRoute(builder: (_) => const AddEditFlatScreen());
+
+      case editFlat:
+        final flat = settings.arguments as FlatModel;
         return MaterialPageRoute(
-          builder: (_) => Scaffold(
-            body: Center(
-              child: Text('${settings.name} - Coming Soon'),
-            ),
-          ),
+          builder: (_) => AddEditFlatScreen(flat: flat),
         );
 
       default:
