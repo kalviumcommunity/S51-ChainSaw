@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/visitor_provider.dart';
+import '../../models/visitor_model.dart';
 
 class VisitorHistoryScreen extends StatefulWidget {
   const VisitorHistoryScreen({super.key});
@@ -12,101 +17,112 @@ class _VisitorHistoryScreenState extends State<VisitorHistoryScreen> {
   String _selectedFilter = 'All';
 
   @override
+  void initState() {
+    super.initState();
+    // Initialize visitor provider for resident if not already done
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = context.read<AuthProvider>().user;
+      if (user?.flatNumber != null && user!.flatNumber!.isNotEmpty) {
+        context.read<VisitorProvider>().initializeForResident(user.flatNumber!);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // TODO: Replace with real data from provider
-    final allVisitors = [
-      {'name': 'Mike Johnson', 'time': '09:00 AM', 'date': 'Today', 'status': 'approved', 'purpose': 'Plumber'},
-      {'name': 'Sarah Connor', 'time': '10:00 AM', 'date': 'Today', 'status': 'approved', 'purpose': 'Guest'},
-      {'name': 'John Doe', 'time': '02:30 PM', 'date': 'Yesterday', 'status': 'checked_out', 'purpose': 'Delivery'},
-      {'name': 'Tom Hardy', 'time': '11:00 AM', 'date': 'Yesterday', 'status': 'denied', 'purpose': 'Unknown'},
-      {'name': 'Lisa Park', 'time': '09:15 AM', 'date': '2 days ago', 'status': 'checked_out', 'purpose': 'Maintenance'},
-      {'name': 'David Kim', 'time': '03:45 PM', 'date': '3 days ago', 'status': 'checked_out', 'purpose': 'Guest'},
-    ];
+    return Consumer<VisitorProvider>(
+      builder: (context, visitorProvider, child) {
+        final allVisitors = visitorProvider.flatVisitors;
+        final filteredVisitors = _selectedFilter == 'All'
+            ? allVisitors
+            : visitorProvider.getVisitorsByStatus(_selectedFilter.toLowerCase());
 
-    final filteredVisitors = _selectedFilter == 'All'
-        ? allVisitors
-        : allVisitors.where((v) => v['status'] == _selectedFilter.toLowerCase()).toList();
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Visitor History'),
-        backgroundColor: AppColors.residentColor,
-      ),
-      body: Column(
-        children: [
-          // Filter Chips
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildFilterChip('All'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Approved'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Denied'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Checked_out'),
-                ],
-              ),
-            ),
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Visitor History'),
+            backgroundColor: AppColors.residentColor,
+            foregroundColor: Colors.white,
           ),
-
-          // Visitor List
-          Expanded(
-            child: filteredVisitors.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.history, size: 64, color: Colors.grey.shade300),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No visitor history',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Visitors will appear here once approved or denied',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey.shade400,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: () async {
-                      // TODO: Refresh data from provider
-                      await Future.delayed(const Duration(seconds: 1));
-                    },
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: filteredVisitors.length,
-                      itemBuilder: (context, index) {
-                        final visitor = filteredVisitors[index];
-                        return _buildHistoryCard(visitor);
-                      },
-                    ),
+          body: Column(
+            children: [
+              // Filter Chips
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildFilterChip('All', allVisitors.length),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Approved',
+                          visitorProvider.getVisitorsByStatus('approved').length),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Denied',
+                          visitorProvider.getVisitorsByStatus('denied').length),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Checked_out',
+                          visitorProvider.getVisitorsByStatus('checked_out').length),
+                    ],
                   ),
+                ),
+              ),
+
+              // Visitor List
+              Expanded(
+                child: visitorProvider.isLoading && allVisitors.isEmpty
+                    ? const Center(child: CircularProgressIndicator())
+                    : filteredVisitors.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.history,
+                                    size: 64, color: Colors.grey.shade300),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No visitor history',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    color: Colors.grey.shade500,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Visitors will appear here once approved or denied',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey.shade400,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          )
+                        : RefreshIndicator(
+                            onRefresh: () => visitorProvider.refresh(),
+                            child: ListView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              itemCount: filteredVisitors.length,
+                              itemBuilder: (context, index) {
+                                final visitor = filteredVisitors[index];
+                                return _buildHistoryCard(visitor);
+                              },
+                            ),
+                          ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildFilterChip(String label) {
+  Widget _buildFilterChip(String label, int count) {
     final isSelected = _selectedFilter == label;
     final displayLabel = label == 'Checked_out' ? 'Checked Out' : label;
 
     return FilterChip(
-      label: Text(displayLabel),
+      label: Text('$displayLabel ($count)'),
       selected: isSelected,
       onSelected: (selected) {
         setState(() {
@@ -122,11 +138,32 @@ class _VisitorHistoryScreenState extends State<VisitorHistoryScreen> {
     );
   }
 
-  Widget _buildHistoryCard(Map<String, String> visitor) {
-    final status = visitor['status']!;
+  Widget _buildHistoryCard(VisitorModel visitor) {
+    final status = visitor.status;
     final statusColor = _getStatusColor(status);
     final statusIcon = _getStatusIcon(status);
     final statusLabel = _getStatusLabel(status);
+
+    final timeFormat = DateFormat('hh:mm a');
+    final dateFormat = DateFormat('MMM d, yyyy');
+    final entryTimeStr = timeFormat.format(visitor.entryTime);
+    final entryDateStr = dateFormat.format(visitor.entryTime);
+
+    // Calculate relative date
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final entryDate =
+        DateTime(visitor.entryTime.year, visitor.entryTime.month, visitor.entryTime.day);
+
+    String relativeDate;
+    if (entryDate == today) {
+      relativeDate = 'Today';
+    } else if (entryDate == yesterday) {
+      relativeDate = 'Yesterday';
+    } else {
+      relativeDate = entryDateStr;
+    }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -145,7 +182,7 @@ class _VisitorHistoryScreenState extends State<VisitorHistoryScreen> {
                 backgroundColor: statusColor.withAlpha(50),
                 radius: 24,
                 child: Text(
-                  visitor['name']![0],
+                  visitor.name.isNotEmpty ? visitor.name[0] : 'V',
                   style: TextStyle(
                     color: statusColor,
                     fontWeight: FontWeight.bold,
@@ -159,7 +196,7 @@ class _VisitorHistoryScreenState extends State<VisitorHistoryScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      visitor['name']!,
+                      visitor.name,
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 16,
@@ -170,11 +207,14 @@ class _VisitorHistoryScreenState extends State<VisitorHistoryScreen> {
                       children: [
                         Icon(Icons.notes, size: 14, color: Colors.grey.shade500),
                         const SizedBox(width: 4),
-                        Text(
-                          visitor['purpose']!,
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 13,
+                        Expanded(
+                          child: Text(
+                            visitor.purpose ?? 'No purpose specified',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 13,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -182,10 +222,11 @@ class _VisitorHistoryScreenState extends State<VisitorHistoryScreen> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(Icons.access_time, size: 14, color: Colors.grey.shade500),
+                        Icon(Icons.access_time,
+                            size: 14, color: Colors.grey.shade500),
                         const SizedBox(width: 4),
                         Text(
-                          '${visitor['date']} at ${visitor['time']}',
+                          '$relativeDate at $entryTimeStr',
                           style: TextStyle(
                             color: Colors.grey.shade500,
                             fontSize: 12,
@@ -225,17 +266,22 @@ class _VisitorHistoryScreenState extends State<VisitorHistoryScreen> {
     );
   }
 
-  void _showVisitorDetails(Map<String, String> visitor) {
+  void _showVisitorDetails(VisitorModel visitor) {
+    final status = visitor.status;
+    final statusColor = _getStatusColor(status);
+    final statusLabel = _getStatusLabel(status);
+
+    final timeFormat = DateFormat('hh:mm a');
+    final dateFormat = DateFormat('EEEE, MMM d, yyyy');
+    final entryTimeStr = timeFormat.format(visitor.entryTime);
+    final entryDateStr = dateFormat.format(visitor.entryTime);
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
-        final status = visitor['status']!;
-        final statusColor = _getStatusColor(status);
-        final statusLabel = _getStatusLabel(status);
-
         return Container(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -248,7 +294,7 @@ class _VisitorHistoryScreenState extends State<VisitorHistoryScreen> {
                     backgroundColor: statusColor.withAlpha(50),
                     radius: 32,
                     child: Text(
-                      visitor['name']![0],
+                      visitor.name.isNotEmpty ? visitor.name[0] : 'V',
                       style: TextStyle(
                         color: statusColor,
                         fontWeight: FontWeight.bold,
@@ -262,7 +308,7 @@ class _VisitorHistoryScreenState extends State<VisitorHistoryScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          visitor['name']!,
+                          visitor.name,
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 20,
@@ -270,7 +316,8 @@ class _VisitorHistoryScreenState extends State<VisitorHistoryScreen> {
                         ),
                         const SizedBox(height: 4),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: statusColor.withAlpha(25),
                             borderRadius: BorderRadius.circular(12),
@@ -292,11 +339,23 @@ class _VisitorHistoryScreenState extends State<VisitorHistoryScreen> {
               const SizedBox(height: 24),
               const Divider(),
               const SizedBox(height: 16),
-              _buildDetailRow(Icons.notes, 'Purpose', visitor['purpose']!),
+              _buildDetailRow(Icons.phone, 'Phone', visitor.phone),
               const SizedBox(height: 12),
-              _buildDetailRow(Icons.calendar_today, 'Date', visitor['date']!),
+              _buildDetailRow(
+                  Icons.notes, 'Purpose', visitor.purpose ?? 'Not specified'),
               const SizedBox(height: 12),
-              _buildDetailRow(Icons.access_time, 'Time', visitor['time']!),
+              _buildDetailRow(Icons.calendar_today, 'Date', entryDateStr),
+              const SizedBox(height: 12),
+              _buildDetailRow(Icons.access_time, 'Entry Time', entryTimeStr),
+              if (visitor.exitTime != null) ...[
+                const SizedBox(height: 12),
+                _buildDetailRow(Icons.logout, 'Exit Time',
+                    timeFormat.format(visitor.exitTime!)),
+              ],
+              if (visitor.guardName != null) ...[
+                const SizedBox(height: 12),
+                _buildDetailRow(Icons.security, 'Guard', visitor.guardName!),
+              ],
               const SizedBox(height: 24),
             ],
           ),
