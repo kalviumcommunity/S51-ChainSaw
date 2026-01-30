@@ -40,6 +40,7 @@ class AppConstants {
   static const String visitorsCollection = 'visitors';
   static const String flatsCollection = 'flats';
   static const String activityLogsCollection = 'activity_logs';
+  static const String notificationsCollection = 'notifications';
 
   // Firestore User Fields
   static const String fieldPhone = 'phone';
