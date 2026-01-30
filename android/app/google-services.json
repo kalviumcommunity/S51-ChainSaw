@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "954543990570",
+    "project_id": "gatekee-4225f",
+    "storage_bucket": "gatekee-4225f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:954543990570:android:2fdda7504195e6bdeda053",
+        "android_client_info": {
+          "package_name": "com.example.s51_chainsaw"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "954543990570-uqdes7ivlr9rpgl07ep1ukc6feb5nsg4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDKgCW2xE-II4D4vesLlYULVon-ZV1k-c8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "954543990570-uqdes7ivlr9rpgl07ep1ukc6feb5nsg4.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "954543990570-40rs8sif7fb33j3g15blakarbptvj2vh.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.s51Chainsaw"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

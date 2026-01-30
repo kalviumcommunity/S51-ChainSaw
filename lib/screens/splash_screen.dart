@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../core/theme/app_colors.dart';
 import '../core/routes/app_routes.dart';
 import '../providers/auth_provider.dart';
+import '../providers/notification_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -39,6 +40,9 @@ class _SplashScreenState extends State<SplashScreen> {
         // User authenticated but profile not complete
         route = AppRoutes.roleSelection;
       } else {
+        // Initialize notifications for authenticated user
+        context.read<NotificationProvider>().initialize(authProvider.user!.uid);
+
         // Navigate to appropriate home based on role
         route = _getHomeRoute(authProvider.user!.role);
       }

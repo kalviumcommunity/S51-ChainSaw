@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/theme/app_colors.dart';
 import '../providers/notification_provider.dart';
-import '../screens/notifications/notifications_screen.dart';
+import '../screens/notification/notifications_screen.dart';
 
 /// A notification bell icon with badge showing unread count
 /// Use this widget in AppBar actions

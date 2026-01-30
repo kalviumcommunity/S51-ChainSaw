@@ -2,11 +2,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/visitor_model.dart';
 import '../services/visitor_service.dart';
+import '../services/notification_service.dart';
 
 enum VisitorStatus { initial, loading, loaded, error }
 
 class VisitorProvider extends ChangeNotifier {
   final VisitorService _visitorService = VisitorService();
+  final NotificationService _notificationService = NotificationService();
 
   // State
   VisitorStatus _status = VisitorStatus.initial;
@@ -167,7 +169,15 @@ class VisitorProvider extends ChangeNotifier {
         purpose: purpose,
       );
 
-      await _visitorService.addVisitor(visitor);
+      final visitorId = await _visitorService.addVisitor(visitor);
+
+      // Send notification to residents of this flat
+      await _notificationService.notifyResidentNewVisitor(
+        visitorName: name,
+        flatNumber: flatNumber,
+        visitorId: visitorId,
+      );
+
       _status = VisitorStatus.loaded;
       notifyListeners();
       return true;
@@ -182,7 +192,22 @@ class VisitorProvider extends ChangeNotifier {
   /// Approve a visitor (Resident action)
   Future<bool> approveVisitor(String visitorId, String approvedBy) async {
     try {
+      // Get visitor details before approving
+      final visitor = await _visitorService.getVisitor(visitorId);
+
       await _visitorService.approveVisitor(visitorId, approvedBy);
+
+      // Notify the guard who added this visitor
+      if (visitor != null && visitor.guardId.isNotEmpty) {
+        await _notificationService.notifyGuardVisitorApproved(
+          guardId: visitor.guardId,
+          visitorName: visitor.name,
+          flatNumber: visitor.flatNumber,
+          visitorId: visitorId,
+          approvedBy: approvedBy,
+        );
+      }
+
       return true;
     } catch (e) {
       _errorMessage = e.toString();
@@ -194,7 +219,22 @@ class VisitorProvider extends ChangeNotifier {
   /// Deny a visitor (Resident action)
   Future<bool> denyVisitor(String visitorId, String deniedBy) async {
     try {
+      // Get visitor details before denying
+      final visitor = await _visitorService.getVisitor(visitorId);
+
       await _visitorService.denyVisitor(visitorId, deniedBy);
+
+      // Notify the guard who added this visitor
+      if (visitor != null && visitor.guardId.isNotEmpty) {
+        await _notificationService.notifyGuardVisitorDenied(
+          guardId: visitor.guardId,
+          visitorName: visitor.name,
+          flatNumber: visitor.flatNumber,
+          visitorId: visitorId,
+          deniedBy: deniedBy,
+        );
+      }
+
       return true;
     } catch (e) {
       _errorMessage = e.toString();
