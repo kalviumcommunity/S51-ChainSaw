@@ -8,6 +8,8 @@ import '../../screens/auth/role_selection_screen.dart';
 import '../../screens/guard/guard_home_screen.dart';
 import '../../screens/guard/add_visitor_screen.dart';
 import '../../screens/resident/resident_home_screen.dart';
+import '../../screens/resident/visitor_requests_screen.dart';
+import '../../screens/resident/visitor_history_screen.dart';
 import '../../screens/admin/admin_home_screen.dart';
 import '../../screens/profile/profile_screen.dart';
 
@@ -23,6 +25,8 @@ class AppRoutes {
   static const String guardHome = '/guard-home';
   static const String addVisitor = '/add-visitor';
   static const String residentHome = '/resident-home';
+  static const String visitorRequests = '/visitor-requests';
+  static const String visitorHistory = '/visitor-history';
   static const String adminHome = '/admin-home';
   static const String profile = '/profile';
 
@@ -61,6 +65,12 @@ class AppRoutes {
 
       case residentHome:
         return MaterialPageRoute(builder: (_) => const ResidentHomeScreen());
+
+      case visitorRequests:
+        return MaterialPageRoute(builder: (_) => const VisitorRequestsScreen());
+
+      case visitorHistory:
+        return MaterialPageRoute(builder: (_) => const VisitorHistoryScreen());
 
       case adminHome:
         return MaterialPageRoute(builder: (_) => const AdminHomeScreen());
