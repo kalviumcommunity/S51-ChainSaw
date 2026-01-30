@@ -11,6 +11,7 @@ import '../../screens/resident/resident_home_screen.dart';
 import '../../screens/resident/visitor_requests_screen.dart';
 import '../../screens/resident/visitor_history_screen.dart';
 import '../../screens/admin/admin_home_screen.dart';
+import '../../screens/notification/notifications_screen.dart';
 import '../../screens/profile/profile_screen.dart';
 
 class AppRoutes {
@@ -28,6 +29,7 @@ class AppRoutes {
   static const String visitorRequests = '/visitor-requests';
   static const String visitorHistory = '/visitor-history';
   static const String adminHome = '/admin-home';
+  static const String notifications = '/notifications';
   static const String profile = '/profile';
 
   // Route Generator
@@ -74,6 +76,9 @@ class AppRoutes {
 
       case adminHome:
         return MaterialPageRoute(builder: (_) => const AdminHomeScreen());
+
+      case notifications:
+        return MaterialPageRoute(builder: (_) => const NotificationsScreen());
 
       default:
         return MaterialPageRoute(
