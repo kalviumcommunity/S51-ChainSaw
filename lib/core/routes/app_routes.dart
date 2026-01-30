@@ -8,6 +8,7 @@ import '../../screens/auth/role_selection_screen.dart';
 import '../../screens/guard/guard_home_screen.dart';
 import '../../screens/guard/add_visitor_screen.dart';
 import '../../screens/resident/resident_home_screen.dart';
+import '../../screens/admin/admin_home_screen.dart';
 import '../../screens/profile/profile_screen.dart';
 
 class AppRoutes {
@@ -61,15 +62,8 @@ class AppRoutes {
       case residentHome:
         return MaterialPageRoute(builder: (_) => const ResidentHomeScreen());
 
-      // Placeholder routes
       case adminHome:
-        return MaterialPageRoute(
-          builder: (_) => Scaffold(
-            body: Center(
-              child: Text('${settings.name} - Coming Soon'),
-            ),
-          ),
-        );
+        return MaterialPageRoute(builder: (_) => const AdminHomeScreen());
 
       default:
         return MaterialPageRoute(
