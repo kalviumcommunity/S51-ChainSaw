@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import '../models/visitor_model.dart';
 import '../services/visitor_service.dart';
 import '../services/notification_service.dart';
+import '../services/activity_log_service.dart';
 
 enum VisitorStatus { initial, loading, loaded, error }
 
 class VisitorProvider extends ChangeNotifier {
   final VisitorService _visitorService = VisitorService();
   final NotificationService _notificationService = NotificationService();
+  final ActivityLogService _activityLogService = ActivityLogService();
 
   // State
   VisitorStatus _status = VisitorStatus.initial;
@@ -190,7 +192,7 @@ class VisitorProvider extends ChangeNotifier {
   }
 
   /// Approve a visitor (Resident action)
-  Future<bool> approveVisitor(String visitorId, String approvedBy) async {
+  Future<bool> approveVisitor(String visitorId, String approvedBy, {String? approvedByName}) async {
     try {
       // Get visitor details before approving
       final visitor = await _visitorService.getVisitor(visitorId);
@@ -206,6 +208,15 @@ class VisitorProvider extends ChangeNotifier {
           visitorId: visitorId,
           approvedBy: approvedBy,
         );
+
+        // Log activity
+        await _activityLogService.logVisitorApproved(
+          residentId: approvedBy,
+          residentName: approvedByName ?? 'Resident',
+          visitorId: visitorId,
+          visitorName: visitor.name,
+          flatNumber: visitor.flatNumber,
+        );
       }
 
       return true;
@@ -217,7 +228,7 @@ class VisitorProvider extends ChangeNotifier {
   }
 
   /// Deny a visitor (Resident action)
-  Future<bool> denyVisitor(String visitorId, String deniedBy) async {
+  Future<bool> denyVisitor(String visitorId, String deniedBy, {String? deniedByName}) async {
     try {
       // Get visitor details before denying
       final visitor = await _visitorService.getVisitor(visitorId);
@@ -233,6 +244,15 @@ class VisitorProvider extends ChangeNotifier {
           visitorId: visitorId,
           deniedBy: deniedBy,
         );
+
+        // Log activity
+        await _activityLogService.logVisitorDenied(
+          residentId: deniedBy,
+          residentName: deniedByName ?? 'Resident',
+          visitorId: visitorId,
+          visitorName: visitor.name,
+          flatNumber: visitor.flatNumber,
+        );
       }
 
       return true;
@@ -244,9 +264,24 @@ class VisitorProvider extends ChangeNotifier {
   }
 
   /// Checkout a visitor (Guard action)
-  Future<bool> checkoutVisitor(String visitorId) async {
+  Future<bool> checkoutVisitor(String visitorId, {String? guardId, String? guardName}) async {
     try {
+      // Get visitor details before checkout
+      final visitor = await _visitorService.getVisitor(visitorId);
+
       await _visitorService.checkoutVisitor(visitorId);
+
+      // Log activity
+      if (visitor != null && guardId != null) {
+        await _activityLogService.logVisitorCheckedOut(
+          guardId: guardId,
+          guardName: guardName ?? 'Guard',
+          visitorId: visitorId,
+          visitorName: visitor.name,
+          flatNumber: visitor.flatNumber,
+        );
+      }
+
       return true;
     } catch (e) {
       _errorMessage = e.toString();

@@ -578,6 +578,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
     return RefreshIndicator(
       onRefresh: () => visitorProvider.refresh(),
       child: ListView.builder(
+        key: ValueKey('requests_${pendingVisitors.length}_${pendingVisitors.map((v) => v.id).join('_')}'),
         padding: const EdgeInsets.all(16),
         itemCount: pendingVisitors.length,
         itemBuilder: (context, index) {
@@ -744,7 +745,11 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
     final user = context.read<AuthProvider>().user;
     if (user == null) return;
 
-    final success = await visitorProvider.approveVisitor(visitorId, user.uid);
+    final success = await visitorProvider.approveVisitor(
+      visitorId,
+      user.uid,
+      approvedByName: user.name,
+    );
 
     if (!mounted) return;
 
@@ -760,7 +765,11 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
     final user = context.read<AuthProvider>().user;
     if (user == null) return;
 
-    final success = await visitorProvider.denyVisitor(visitorId, user.uid);
+    final success = await visitorProvider.denyVisitor(
+      visitorId,
+      user.uid,
+      deniedByName: user.name,
+    );
 
     if (!mounted) return;
 
@@ -838,6 +847,7 @@ class _VisitorHistoryTabState extends State<VisitorHistoryTab> {
                   : RefreshIndicator(
                       onRefresh: () => widget.visitorProvider.refresh(),
                       child: ListView.builder(
+                        key: ValueKey('history_${filteredVisitors.length}_${filteredVisitors.map((v) => v.id).join('_')}'),
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         itemCount: filteredVisitors.length,
                         itemBuilder: (context, index) {

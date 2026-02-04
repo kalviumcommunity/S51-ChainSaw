@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "954543990570-vt9p8297u6q64m3jf7dmm211itg7hv0v.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.s51_chainsaw",
+            "certificate_hash": "186a57caa6ae98d16a8e2bb0ebdd57d0599b8b5f"
+          }
+        },
+        {
           "client_id": "954543990570-uqdes7ivlr9rpgl07ep1ukc6feb5nsg4.apps.googleusercontent.com",
           "client_type": 3
         }

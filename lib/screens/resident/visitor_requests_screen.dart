@@ -247,7 +247,11 @@ class _VisitorRequestsScreenState extends State<VisitorRequestsScreen> {
     final user = context.read<AuthProvider>().user;
     if (user == null) return;
 
-    final success = await visitorProvider.approveVisitor(visitorId, user.uid);
+    final success = await visitorProvider.approveVisitor(
+      visitorId,
+      user.uid,
+      approvedByName: user.name,
+    );
 
     if (!mounted) return;
 
@@ -264,7 +268,11 @@ class _VisitorRequestsScreenState extends State<VisitorRequestsScreen> {
     final user = context.read<AuthProvider>().user;
     if (user == null) return;
 
-    final success = await visitorProvider.denyVisitor(visitorId, user.uid);
+    final success = await visitorProvider.denyVisitor(
+      visitorId,
+      user.uid,
+      deniedByName: user.name,
+    );
 
     if (!mounted) return;
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
+import '../services/flat_service.dart';
 import '../models/user_model.dart';
 
 enum AuthStatus {
@@ -16,6 +17,7 @@ enum AuthStatus {
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
   final UserService _userService = UserService();
+  final FlatService _flatService = FlatService();
 
   AuthStatus _status = AuthStatus.initial;
   UserModel? _user;
@@ -393,6 +395,15 @@ class AuthProvider extends ChangeNotifier {
       );
 
       await _userService.createUser(newUser);
+
+      // If resident, auto-create flat (if needed) and link resident to it
+      if (role == 'resident' && flatNumber != null && flatNumber.isNotEmpty) {
+        await _flatService.assignResidentToFlatByNumber(
+          flatNumber,
+          firebaseUser.uid,
+        );
+      }
+
       _user = newUser;
       _isNewUser = false;
       _status = AuthStatus.authenticated;

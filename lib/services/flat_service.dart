@@ -49,11 +49,17 @@ class FlatService {
     }
   }
 
-  /// Get flat by flat number
+  /// Get flat by flat number (supports both "A-101" format and just "101")
   Future<FlatModel?> getFlatByNumber(String flatNumber) async {
     try {
+      // Parse block and number from input like "A-101"
+      final block = _extractBlock(flatNumber);
+      final number = _extractNumber(flatNumber);
+
+      // Query by both block and flat number for accurate matching
       final snapshot = await _flatsRef
-          .where(AppConstants.fieldFlatNum, isEqualTo: flatNumber)
+          .where(AppConstants.fieldBlock, isEqualTo: block)
+          .where(AppConstants.fieldFlatNum, isEqualTo: number)
           .limit(1)
           .get();
 
@@ -201,9 +207,10 @@ class FlatService {
         await addResidentToFlat(flat.id, residentId);
       } else {
         // Create new flat with resident
+        // Extract block (e.g., "A") and number (e.g., "101") from "A-101"
         final newFlat = FlatModel(
           id: '',
-          flatNumber: flatNumber,
+          flatNumber: _extractNumber(flatNumber),
           block: _extractBlock(flatNumber),
           residentIds: [residentId],
           createdAt: DateTime.now(),
@@ -223,6 +230,15 @@ class FlatService {
       return parts[0].toUpperCase();
     }
     return 'A'; // Default block
+  }
+
+  /// Extract number from flat number (e.g., "A-101" -> "101")
+  String _extractNumber(String flatNumber) {
+    final parts = flatNumber.split('-');
+    if (parts.length > 1) {
+      return parts[1];
+    }
+    return flatNumber; // Return as-is if no delimiter
   }
 
   // ============================================================

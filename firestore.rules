@@ -24,10 +24,11 @@ service cloud.firestore {
 
     // Notifications collection
     match /notifications/{notificationId} {
-      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Allow read if authenticated (stream queries need this)
+      allow read: if request.auth != null;
       allow create: if request.auth != null;
-      allow update: if request.auth != null && request.auth.uid == resource.data.userId;
-      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
     }
 
     // Activity logs collection

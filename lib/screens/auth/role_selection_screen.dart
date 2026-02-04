@@ -15,8 +15,11 @@ class RoleSelectionScreen extends StatefulWidget {
 class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _flatController = TextEditingController();
+  final _flatNumberController = TextEditingController();
   String _selectedRole = '';
+  String _selectedBlock = 'A';
+
+  final List<String> _blocks = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
   @override
   void initState() {
@@ -26,9 +29,11 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _flatController.dispose();
+    _flatNumberController.dispose();
     super.dispose();
   }
+
+  String get _fullFlatNumber => '$_selectedBlock-${_flatNumberController.text.trim()}';
 
   @override
   Widget build(BuildContext context) {
@@ -136,22 +141,89 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                 // Flat Number (only for residents)
                 if (_selectedRole == AppConstants.roleResident) ...[
                   const SizedBox(height: 24),
-                  TextFormField(
-                    controller: _flatController,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(
-                      labelText: 'Flat Number',
-                      hintText: 'e.g., A-101',
-                      prefixIcon: Icon(Icons.apartment),
+                  const Text(
+                    'Your Flat',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
                     ),
-                    validator: (value) {
-                      if (_selectedRole == AppConstants.roleResident) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your flat number';
-                        }
-                      }
-                      return null;
-                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Block Dropdown
+                      Expanded(
+                        flex: 2,
+                        child: DropdownButtonFormField<String>(
+                          value: _selectedBlock,
+                          decoration: const InputDecoration(
+                            labelText: 'Block',
+                            prefixIcon: Icon(Icons.domain),
+                          ),
+                          items: _blocks.map((block) {
+                            return DropdownMenuItem(
+                              value: block,
+                              child: Text('Block $block'),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedBlock = value!;
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Flat Number
+                      Expanded(
+                        flex: 2,
+                        child: TextFormField(
+                          controller: _flatNumberController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Flat No.',
+                            hintText: '101',
+                            prefixIcon: Icon(Icons.tag),
+                          ),
+                          validator: (value) {
+                            if (_selectedRole == AppConstants.roleResident) {
+                              if (value == null || value.isEmpty) {
+                                return 'Required';
+                              }
+                              if (!RegExp(r'^\d+$').hasMatch(value)) {
+                                return 'Numbers only';
+                              }
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Preview
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.secondary.withAlpha(25),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.secondary.withAlpha(50)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.apartment, size: 18, color: AppColors.secondary),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Flat: $_fullFlatNumber',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.secondary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
 
@@ -302,7 +374,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
       name: _nameController.text.trim(),
       role: _selectedRole,
       flatNumber: _selectedRole == AppConstants.roleResident
-          ? _flatController.text.trim()
+          ? _fullFlatNumber
           : null,
     );
 

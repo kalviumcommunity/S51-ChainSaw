@@ -33,6 +33,15 @@
       ]
     },
     {
+      "collectionGroup": "visitors",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "flatNumber", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "entryTime", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "activity_logs",
       "queryScope": "COLLECTION",
       "fields": [

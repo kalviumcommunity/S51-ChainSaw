@@ -17,10 +17,16 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
   final _phoneController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   String _selectedCountryCode = '+91';
+  VoidCallback? _authListener;
+  AuthProvider? _authProvider;
 
   @override
   void dispose() {
     _phoneController.dispose();
+    // Remove listener if still attached
+    if (_authListener != null && _authProvider != null) {
+      _authProvider!.removeListener(_authListener!);
+    }
     super.dispose();
   }
 
@@ -213,21 +219,31 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
     }
 
     final phoneNumber = '$_selectedCountryCode${_phoneController.text}';
-    final authProvider = context.read<AuthProvider>();
+    _authProvider = context.read<AuthProvider>();
 
-    await authProvider.sendOTP(phoneNumber);
+    // Listen for status changes since verifyPhoneNumber is non-blocking
+    _authListener = () {
+      if (!mounted) return;
 
-    if (!mounted) return;
+      if (_authProvider!.status == AuthStatus.otpSent) {
+        _authProvider!.removeListener(_authListener!);
+        _authListener = null;
+        Navigator.pushNamed(
+          context,
+          AppRoutes.otpVerification,
+          arguments: {
+            'verificationId': _authProvider!.verificationId,
+            'phoneNumber': phoneNumber,
+          },
+        );
+      } else if (_authProvider!.status == AuthStatus.error) {
+        _authProvider!.removeListener(_authListener!);
+        _authListener = null;
+        // Error is already displayed via Consumer
+      }
+    };
 
-    if (authProvider.status == AuthStatus.otpSent) {
-      Navigator.pushNamed(
-        context,
-        AppRoutes.otpVerification,
-        arguments: {
-          'verificationId': authProvider.verificationId,
-          'phoneNumber': phoneNumber,
-        },
-      );
-    }
+    _authProvider!.addListener(_authListener!);
+    await _authProvider!.sendOTP(phoneNumber);
   }
 }

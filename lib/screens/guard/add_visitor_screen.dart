@@ -15,15 +15,20 @@ class _AddVisitorScreenState extends State<AddVisitorScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _flatController = TextEditingController();
+  final _flatNumberController = TextEditingController();
   final _purposeController = TextEditingController();
   bool _isLoading = false;
+  String _selectedBlock = 'A';
+
+  final List<String> _blocks = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+  String get _fullFlatNumber => '$_selectedBlock-${_flatNumberController.text.trim()}';
 
   @override
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
-    _flatController.dispose();
+    _flatNumberController.dispose();
     _purposeController.dispose();
     super.dispose();
   }
@@ -112,19 +117,79 @@ class _AddVisitorScreenState extends State<AddVisitorScreen> {
               // Flat Number
               _buildInputLabel('Flat Number', required: true),
               const SizedBox(height: 8),
-              TextFormField(
-                controller: _flatController,
-                textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(
-                  hintText: 'e.g., A-101, B-202',
-                  prefixIcon: Icon(Icons.apartment),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Block Dropdown
+                  Expanded(
+                    flex: 2,
+                    child: DropdownButtonFormField<String>(
+                      value: _selectedBlock,
+                      decoration: const InputDecoration(
+                        labelText: 'Block',
+                        prefixIcon: Icon(Icons.domain),
+                      ),
+                      items: _blocks.map((block) {
+                        return DropdownMenuItem(
+                          value: block,
+                          child: Text('Block $block'),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedBlock = value!;
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Flat/Door Number
+                  Expanded(
+                    flex: 2,
+                    child: TextFormField(
+                      controller: _flatNumberController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Flat No.',
+                        hintText: '101',
+                        prefixIcon: Icon(Icons.tag),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Required';
+                        }
+                        if (!RegExp(r'^\d+$').hasMatch(value)) {
+                          return 'Numbers only';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Preview
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.guardColor.withAlpha(25),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.guardColor.withAlpha(50)),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter flat number';
-                  }
-                  return null;
-                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.apartment, size: 18, color: AppColors.guardColor),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Visiting: $_fullFlatNumber',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.guardColor,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 20),
 
@@ -264,7 +329,7 @@ class _AddVisitorScreenState extends State<AddVisitorScreen> {
       final success = await visitorProvider.addVisitor(
         name: _nameController.text.trim(),
         phone: _phoneController.text.trim(),
-        flatNumber: _flatController.text.trim().toUpperCase(),
+        flatNumber: _fullFlatNumber,
         guardId: user.uid,
         guardName: user.name,
         purpose: _purposeController.text.trim().isNotEmpty

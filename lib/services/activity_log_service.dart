@@ -362,6 +362,60 @@ class ActivityLogService {
     );
   }
 
+  Future<void> logVisitorApproved({
+    required String residentId,
+    required String residentName,
+    required String visitorId,
+    required String visitorName,
+    required String flatNumber,
+  }) async {
+    await logActivity(
+      type: ActivityType.visitorApproved,
+      adminId: residentId,
+      adminName: residentName,
+      targetId: visitorId,
+      targetName: visitorName,
+      description: '$residentName approved visitor $visitorName for flat $flatNumber',
+      metadata: {'flatNumber': flatNumber},
+    );
+  }
+
+  Future<void> logVisitorDenied({
+    required String residentId,
+    required String residentName,
+    required String visitorId,
+    required String visitorName,
+    required String flatNumber,
+  }) async {
+    await logActivity(
+      type: ActivityType.visitorDenied,
+      adminId: residentId,
+      adminName: residentName,
+      targetId: visitorId,
+      targetName: visitorName,
+      description: '$residentName denied visitor $visitorName for flat $flatNumber',
+      metadata: {'flatNumber': flatNumber},
+    );
+  }
+
+  Future<void> logVisitorCheckedOut({
+    required String guardId,
+    required String guardName,
+    required String visitorId,
+    required String visitorName,
+    required String flatNumber,
+  }) async {
+    await logActivity(
+      type: ActivityType.visitorCheckedOut,
+      adminId: guardId,
+      adminName: guardName,
+      targetId: visitorId,
+      targetName: visitorName,
+      description: '$guardName checked out visitor $visitorName from flat $flatNumber',
+      metadata: {'flatNumber': flatNumber},
+    );
+  }
+
   // ============================================================
   // READ
   // ============================================================

@@ -199,6 +199,7 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
     return RefreshIndicator(
       onRefresh: () => visitorProvider.refresh(),
       child: ListView.builder(
+        key: ValueKey('pending_${pendingVisitors.length}_${pendingVisitors.map((v) => v.id).join('_')}'),
         padding: const EdgeInsets.all(16),
         itemCount: pendingVisitors.length,
         itemBuilder: (context, index) {
@@ -226,6 +227,7 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
     return RefreshIndicator(
       onRefresh: () => visitorProvider.refresh(),
       child: ListView.builder(
+        key: ValueKey('inside_${insideVisitors.length}_${insideVisitors.map((v) => v.id).join('_')}'),
         padding: const EdgeInsets.all(16),
         itemCount: insideVisitors.length,
         itemBuilder: (context, index) {
@@ -426,7 +428,13 @@ class _GuardHomeScreenState extends State<GuardHomeScreen>
 
   Future<void> _checkoutVisitor(String visitorId) async {
     final visitorProvider = context.read<VisitorProvider>();
-    final success = await visitorProvider.checkoutVisitor(visitorId);
+    final user = context.read<AuthProvider>().user;
+
+    final success = await visitorProvider.checkoutVisitor(
+      visitorId,
+      guardId: user?.uid,
+      guardName: user?.name,
+    );
 
     if (!mounted) return;
 
